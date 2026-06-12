@@ -67,7 +67,17 @@ export default function OwnerDashboard({
   announcement
 }: OwnerDashboardProps) {
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'vouchers' | 'payments' | 'plans' | 'customers' | 'network' | 'whatsapp' | 'reports'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'vouchers' | 'payments' | 'plans' | 'customers' | 'network' | 'whatsapp' | 'billing' | 'reports'>('overview');
+
+  // Paystack mock checkout state
+  const [showPaystackCheckout, setShowPaystackCheckout] = useState(false);
+  const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<SaaSPlan | null>(null);
+  const [paystackEmail, setPaystackEmail] = useState('johnnybgsu@gmail.com');
+  const [paystackCardNo, setPaystackCardNo] = useState('4084 0000 0000 1234');
+  const [paystackExpiry, setPaystackExpiry] = useState('12/28');
+  const [paystackCvv, setPaystackCvv] = useState('821');
+  const [isPayingPaystack, setIsPayingPaystack] = useState(false);
+  const [paystackSuccess, setPaystackSuccess] = useState(false);
 
   // Search filter states
   const [voucherSearch, setVoucherSearch] = useState('');
@@ -484,6 +494,7 @@ export default function OwnerDashboard({
           { id: 'customers', label: 'Customers CRM' },
           { id: 'network', label: 'Starlink Live Sessions' },
           { id: 'whatsapp', label: 'WhatsApp Dispatcher log' },
+          { id: 'billing', label: '💳 Subscription (Paystack)' },
           { id: 'reports', label: 'Reports & Export' }
         ].map((tab) => {
           const isSel = activeTab === tab.id;
@@ -1336,6 +1347,274 @@ export default function OwnerDashboard({
                 })}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: SaaS Subscription & Paystack Billing */}
+      {activeTab === 'billing' && (
+        <div className="space-y-6">
+          {/* Header Billboard */}
+          <div className="bg-gradient-to-r from-slate-900 via-brand-950 to-slate-900 text-white rounded-2xl p-6 border border-brand-800 shadow-md">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <span className="px-2.5 py-0.5 bg-brand-500 text-slate-950 font-black rounded-full text-[10px] uppercase tracking-wider">
+                  WiFiSplit Reseller SaaS Account
+                </span>
+                <h3 className="text-xl font-extrabold text-white mt-1">Platform Subscription & Gateway Channels</h3>
+                <p className="text-brand-200 text-xs mt-1 leading-normal max-w-xl">
+                  Resellers (Starlink hotspot owners) pay a monthly subscription fee to keep their secure voucher portal, printable PDF generators, and WhatsApp notification alerts online.
+                </p>
+              </div>
+              <div className="bg-slate-950/40 border border-brand-700/30 rounded-xl px-4 py-3 text-right">
+                <span className="text-[10px] text-brand-300 block uppercase font-bold">Your Status</span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 mt-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Active {currentSaaSTier.toUpperCase()} Plan
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Pricing Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {saasPlans.map((plan) => {
+              const isActive = plan.id === currentSaaSTier;
+              return (
+                <div 
+                  key={plan.id}
+                  className={`bg-white rounded-2xl border p-6 flex flex-col justify-between shadow-sm relative transition-all ${
+                    isActive 
+                      ? 'ring-2 ring-brand-500 border-brand-500 scale-[1.02] md:-translate-y-1' 
+                      : 'border-slate-200'
+                  }`}
+                >
+                  {/* Active ribbon */}
+                  {isActive && (
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-500 text-slate-950 font-black text-[9px] uppercase tracking-wider px-3 py-1 rounded-full shadow">
+                      ⭐ Current Active Subscription
+                    </span>
+                  )}
+
+                  <div>
+                    <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">{plan.name}</h4>
+                    <div className="mt-3 flex items-baseline gap-1">
+                      <span className="text-2xl font-black text-slate-900 font-sans">₦{plan.priceNaira.toLocaleString()}</span>
+                      <span className="text-slate-400 text-xs">/ month</span>
+                    </div>
+
+                    <p className="text-slate-500 text-[11px] mt-2 font-medium leading-normal border-b border-slate-100 pb-3">
+                      Perfect to fuel neighborhood hotspot distribution. Billing processes securely via Paystack.
+                    </p>
+
+                    <ul className="mt-4 space-y-2">
+                      {plan.features.map((feat, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-slate-600 font-medium">
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          <span className="leading-tight">{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-slate-150">
+                    {isActive ? (
+                      <button 
+                        disabled
+                        className="w-full bg-emerald-50 text-emerald-800 border border-emerald-200 py-2.5 rounded-xl text-xs font-black text-center cursor-default uppercase"
+                      >
+                        ✓ Subscribed
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => {
+                          setSelectedUpgradePlan(plan);
+                          setPaystackSuccess(false);
+                          setIsPayingPaystack(false);
+                          setShowPaystackCheckout(true);
+                        }}
+                        className="w-full bg-slate-900 text-white hover:bg-slate-950 hover:scale-[1.01] transition-transform py-2.5 rounded-xl text-xs font-bold text-center"
+                      >
+                        Upgrade to {plan.name}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Secure gateway trust notice */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+            <div className="flex items-center gap-2 text-slate-600 font-medium">
+              <span className="text-2xl">🔒</span>
+              <div>
+                <p className="font-extrabold text-slate-800 uppercase text-[10px]">Secure Paystack Checkout Integration</p>
+                <p className="text-slate-500">WiFiSplit leverages official Paystack authorization APIs for secure recurring collection channels.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 opacity-60">
+              <span className="h-6 w-16 bg-slate-200 rounded flex items-center justify-center font-bold text-[8px] text-slate-500">VISA</span>
+              <span className="h-6 w-16 bg-slate-200 rounded flex items-center justify-center font-bold text-[8px] text-slate-400/80">VERVE</span>
+              <span className="h-6 w-16 bg-slate-200 rounded flex items-center justify-center font-bold text-[8px] text-brand-605 uppercase font-black text-emerald-600">paystack</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Paystack Checkout Screen Modal */}
+      {showPaystackCheckout && selectedUpgradePlan && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-200 font-sans text-slate-800 leading-normal z-50">
+            
+            {/* Paystack Top Header */}
+            <div className="bg-[#3ac58e] text-white p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-md bg-white text-[#3ac58e] font-black flex items-center justify-center text-xs">
+                  P
+                </span>
+                <div>
+                  <h4 className="text-xs uppercase tracking-wider font-extrabold text-emerald-950">Paystack Checkout</h4>
+                  <p className="text-[10px] text-emerald-100">Securing your hotspot platform links</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] uppercase tracking-widest text-[#0c402b] font-bold block">Amount to Pay</span>
+                <span className="text-sm font-black text-white">₦{selectedUpgradePlan.priceNaira.toLocaleString()}.00</span>
+              </div>
+            </div>
+
+            {paystackSuccess ? (
+              /* Success visual states */
+              <div className="p-6 text-center space-y-4">
+                <div className="w-16 h-16 bg-emerald-105 text-[#3ac58e] rounded-full flex items-center justify-center text-3xl mx-auto shadow-inner animate-bounce">
+                  🎉
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800 uppercase">Payment Successful!</h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Your platform reseller node has been upgraded to <strong className="text-emerald-600 font-bold">{selectedUpgradePlan.name}</strong>.
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-100 p-3 rounded-lg text-left text-[11px] space-y-1.5 font-mono">
+                  <div className="flex justify-between text-slate-500">
+                    <span>Transaction ID:</span>
+                    <span className="font-bold text-slate-800">PSTK-TXN-{Date.now().toString().slice(-6)}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-500">
+                    <span>Authorized Key:</span>
+                    <span className="font-bold text-slate-800">auth_9982x1z90</span>
+                  </div>
+                  <div className="flex justify-between text-slate-500">
+                    <span>SaaS Period:</span>
+                    <span className="font-bold text-slate-800">30 Days (Renew July 12)</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    onUpgradeSaaSTier(selectedUpgradePlan.id);
+                    setShowPaystackCheckout(false);
+                  }}
+                  className="w-full bg-[#3ac58e] hover:bg-emerald-600 text-white font-extrabold py-2.5 rounded-xl text-xs transition-colors shadow-sm"
+                >
+                  Access Platform upgraded dashboard
+                </button>
+              </div>
+            ) : (
+              /* Fields filling forms screen */
+              <div className="p-5 space-y-4 text-xs">
+                
+                {isPayingPaystack ? (
+                  /* Emulate payment loading state */
+                  <div className="py-12 text-center space-y-4">
+                    <div className="w-10 h-10 border-4 border-[#3ac58e] border-t-transparent rounded-full animate-spin mx-auto mr-auto" />
+                    <div>
+                      <h5 className="font-bold text-slate-800">Contacting CBN switch engine...</h5>
+                      <p className="text-[10px] text-slate-400 mt-1 leading-snug">WiFiSplit is authorizing recurring account link details on Paystack. please wait.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block">Hotspot Owner Email Address</span>
+                      <input
+                        type="email"
+                        value={paystackEmail}
+                        onChange={(e) => setPaystackEmail(e.target.value)}
+                        placeholder="owner@starlinkwifi.ng"
+                        className="w-full border border-slate-200 hover:border-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#3ac58e]"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block">Debit Card Number</span>
+                      <input
+                        type="text"
+                        value={paystackCardNo}
+                        onChange={(e) => setPaystackCardNo(e.target.value)}
+                        placeholder="4084 0000 0000 1234"
+                        className="w-full border border-slate-200 hover:border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#3ac58e]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block">Expiry Month/Yr</span>
+                        <input
+                          type="text"
+                          value={paystackExpiry}
+                          onChange={(e) => setPaystackExpiry(e.target.value)}
+                          placeholder="12/28"
+                          className="w-full border border-slate-200 hover:border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block">Card CVV</span>
+                        <input
+                          type="password"
+                          value={paystackCvv}
+                          onChange={(e) => setPaystackCvv(e.target.value)}
+                          placeholder="821"
+                          maxLength={3}
+                          className="w-full border border-slate-200 hover:border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-100 flex items-center gap-2 text-[10.5px] leading-tight text-slate-500">
+                      <span>⚡</span>
+                      <p>You are upgrading to <strong>{selectedUpgradePlan.name}</strong>. Enjoy unlimited client capacity and customizable PDF print Slips!</p>
+                    </div>
+
+                    <div className="flex gap-2.5 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowPaystackCheckout(false)}
+                        className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold py-2.5 rounded-xl text-center"
+                      >
+                        Go Back
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsPayingPaystack(true);
+                          setTimeout(() => {
+                            setIsPayingPaystack(false);
+                            setPaystackSuccess(true);
+                          }, 2500);
+                        }}
+                        className="flex-1 bg-[#3ac58e] hover:bg-emerald-600 text-white font-extrabold py-2.5 rounded-xl text-center shadow-md shadow-emerald-100"
+                      >
+                        Pay ₦{selectedUpgradePlan.priceNaira.toLocaleString()}
+                      </button>
+                    </div>
+                  </>
+                )}
+                
+              </div>
+            )}
           </div>
         </div>
       )}

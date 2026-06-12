@@ -62,6 +62,10 @@ export default function App() {
     loadLocalData<string>('saas_announcement', '📢 ANNOUNCEMENT: Starlink latency optimization scheduled for all West-African nodes on June 15, expected to shave ping down by an average of 10ms!')
   );
 
+  const [currentSaaSTier, setCurrentSaaSTier] = useState<'starter' | 'growth' | 'business'>(() => 
+    loadLocalData<'starter' | 'growth' | 'business'>('saas_tier', 'growth')
+  );
+
   // 2. Active Session Testing Role
   // Support three roles: 'owner' | 'customer' | 'super'
   const [currentRole, setCurrentRole] = useState<'owner' | 'customer' | 'super'>('owner');
@@ -71,6 +75,11 @@ export default function App() {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [vouchersToPrint, setVouchersToPrint] = useState<Voucher[]>([]);
   const [deviceMockupView, setDeviceMockupView] = useState(false);
+  
+  // Admin passcode modal state
+  const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
+  const [adminPasscode, setAdminPasscode] = useState('');
+  const [adminLoginError, setAdminLoginError] = useState('');
 
   // 3. Save states on trigger
   useEffect(() => {
@@ -108,6 +117,10 @@ export default function App() {
   useEffect(() => {
     saveLocalData('saas_announcement', announcement);
   }, [announcement]);
+
+  useEffect(() => {
+    saveLocalData('saas_tier', currentSaaSTier);
+  }, [currentSaaSTier]);
 
 
   // 4. State Modification Action bridges
@@ -235,20 +248,18 @@ export default function App() {
                   : 'text-slate-400 hover:text-white hover:bg-slate-900'
               }`}
             >
-              👤 Student / Subscriber app
+              👤 Subscribers
             </button>
 
-            <button
-              id="role-switch-super"
-              onClick={() => { setCurrentRole('super'); setDeviceMockupView(false); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
-                currentRole === 'super' 
-                  ? 'bg-brand-500 text-slate-950 font-black shadow-sm' 
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
-              }`}
-            >
-              👑 Platform Owner
-            </button>
+            {currentRole === 'super' && (
+              <button
+                id="role-switch-super"
+                onClick={() => { setCurrentRole('super'); setDeviceMockupView(false); }}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 bg-purple-600 text-white font-black shadow-sm"
+              >
+                👑 SaaS Owner
+              </button>
+            )}
           </div>
 
           {/* Preset trigger controls */}
@@ -281,9 +292,10 @@ export default function App() {
               💡 <strong className="font-extrabold uppercase text-[10px] bg-brand-200 text-brand-950 px-2 py-0.5 rounded-md">How to test Naira Manual Payment Loop</strong>:
             </p>
             <ol className="list-decimal list-inside pl-1 space-y-0.5 text-slate-700 text-[11px] font-medium">
-              <li>Switch to <strong>👤 Student / Subscriber App</strong> profile tab. Select the daily ₦500 plan or weekly option. Fill in details and Submit validation request.</li>
+              <li>Switch to <strong>👤 Subscribers</strong> profile tab. Select the daily ₦500 plan or weekly option. Fill in details and Submit validation request.</li>
               <li>Switch back to <strong>🏢 Reseller Admin</strong> profile. Tap on <strong>💳 Pending Approvals</strong> dashboard block. You see their uploaded reference under review queue!</li>
               <li>Click <strong>Approve Payment</strong>. A secure random Wi-Fi voucher PIN is instantly spawned, and a simulated WhatsApp message record is logged automatically!</li>
+              <li>Access the hidden <strong>Platform Super Admin</strong> anytime by tapping <strong>🔐 SYSTEM_SaaS_OPERATOR_ACCESS</strong> in the bottom footer.</li>
             </ol>
           </div>
         </div>
@@ -334,8 +346,8 @@ export default function App() {
                 messageLogs={messageLogs}
                 onAddMessageLog={(newLog) => setMessageLogs([newLog, ...messageLogs])}
                 saasPlans={SaaSPlans}
-                currentSaaSTier="growth"
-                onUpgradeSaaSTier={(newTier) => console.log('Upgrade SaaS', newTier)}
+                currentSaaSTier={currentSaaSTier}
+                onUpgradeSaaSTier={setCurrentSaaSTier}
                 triggerPrintView={handleTriggerPrintSlips}
                 announcement={announcement}
               />
@@ -445,8 +457,106 @@ export default function App() {
           <p className="text-[10px] text-slate-500 font-mono">
             © 2026 WiFiSplit Inc. Built for low-bandwidth environments in Sub-Saharan Africa. All connection simulations run server-safe and offline.
           </p>
+          <div className="pt-2">
+            {currentRole === 'super' ? (
+              <button 
+                onClick={() => { setCurrentRole('owner'); alert('Exited SaaS Owner session. Reset to Reseller Admin.'); }}
+                className="text-amber-400 hover:text-amber-300 text-[10px] font-mono transition-colors focus:outline-none bg-slate-950 px-3 py-1 rounded border border-amber-500/30"
+              >
+                🔒 EXIT_SUPER_SaaS_ADMIN_SESSION
+              </button>
+            ) : (
+              <button 
+                onClick={() => {
+                  setAdminPasscode('');
+                  setAdminLoginError('');
+                  setShowAdminLoginModal(true);
+                }}
+                className="text-slate-600 hover:text-brand-400 text-[10px] font-mono transition-colors focus:outline-none"
+              >
+                🔐 SYSTEM_SaaS_OPERATOR_ACCESS
+              </button>
+            )}
+          </div>
         </div>
       </footer>
+
+      {/* Hidden Admin Login Gateway Modal */}
+      {showAdminLoginModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm shadow-2xl p-6 text-slate-100 font-sans">
+            <div className="text-center space-y-2 mb-6">
+              <div className="w-12 h-12 bg-purple-950/50 rounded-full border border-purple-500/40 text-purple-400 flex items-center justify-center mx-auto text-xl animate-pulse">
+                🛡️
+              </div>
+              <h3 className="text-base font-extrabold text-white">WiFiSplit SaaS Gateway</h3>
+              <p className="text-xs text-slate-400">Authenticating core platform subscription controller</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] uppercase tracking-widest font-bold text-slate-400 mb-1.5">SaaS Admin Passcode</label>
+                <input
+                  type="password"
+                  value={adminPasscode}
+                  onChange={(e) => {
+                    setAdminPasscode(e.target.value);
+                    setAdminLoginError('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      // Trigger login
+                      if (adminPasscode === 'admin123') {
+                        setCurrentRole('super');
+                        setShowAdminLoginModal(false);
+                        setAdminPasscode('');
+                      } else {
+                        setAdminLoginError('ERR_INVALID_PASSCODE: Please verify credentials and retry.');
+                      }
+                    }
+                  }}
+                  placeholder="••••••••"
+                  autoFocus
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-center font-mono text-sm tracking-widest text-brand-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              {adminLoginError && (
+                <p className="text-[10px] font-mono text-rose-400 bg-rose-950/40 border border-rose-900/50 p-2 rounded text-center leading-normal">
+                  ⚠️ {adminLoginError}
+                </p>
+              )}
+
+              <p className="text-[10px] text-slate-500 text-center font-mono">
+                💡 Hint: Type <code className="text-purple-300 font-bold bg-slate-950 px-1 py-0.5 rounded">admin123</code> to access SaaS Owner deck
+              </p>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => setShowAdminLoginModal(false)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-xl text-xs font-bold transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (adminPasscode === 'admin123') {
+                      setCurrentRole('super');
+                      setShowAdminLoginModal(false);
+                      setAdminPasscode('');
+                    } else {
+                      setAdminLoginError('ERR_INVALID_PASSCODE: Please verify credentials and retry.');
+                    }
+                  }}
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded-xl text-xs transition-all shadow-md"
+                >
+                  Authorize 🔑
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
