@@ -1,0 +1,563 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { HotspotPlan, Voucher, Customer, ActiveSession, HotspotBusiness, SaaSPlan, TenantHotspotBusiness, PaymentRequest, WhatsAppMessageLog } from './types';
+
+export const SaaSPlans: SaaSPlan[] = [
+  {
+    id: 'starter',
+    name: 'Starter Plan',
+    priceNaira: 15000,
+    hotspotsLimit: 1,
+    customersLimit: 150,
+    vouchersLimit: 500,
+    whatsappCredits: 500,
+    maxStaff: 1,
+    features: [
+      '1 Hotspot Owner Business',
+      'Up to 150 Active Customers',
+      'Up to 500 Vouchers/mo',
+      '500 WhatsApp Message Alerts',
+      'Starlink & standard router setup wizard',
+      'Manual Payment Verification Flow',
+      'WhatsApp/SMS Delivery Templates',
+      'Download Printable Vouchers (PDF/CSV)',
+      'Basic Sales Reports'
+    ]
+  },
+  {
+    id: 'growth',
+    name: 'Growth Plan',
+    priceNaira: 35000,
+    hotspotsLimit: 3,
+    customersLimit: 600,
+    vouchersLimit: 2500,
+    whatsappCredits: 3000,
+    maxStaff: 3,
+    features: [
+      'Up to 3 Hotspot Owner Locations',
+      'Up to 600 Active Customers',
+      'Up to 2,500 Vouchers/mo',
+      '3,000 WhatsApp Message Alerts',
+      'Custom Router Integration Hook',
+      'WhatsApp Automatic Reminders',
+      'Comprehensive Sales & Growth Charts',
+      'Bulk Slip Printing & custom branding',
+      'Staff Role Management (Up to 3 staff)',
+    ]
+  },
+  {
+    id: 'business',
+    name: 'Business Pro',
+    priceNaira: 75000,
+    hotspotsLimit: -1, // Unlimited
+    customersLimit: -1, // Unlimited
+    vouchersLimit: -1, // Unlimited
+    whatsappCredits: 10000,
+    maxStaff: 10,
+    features: [
+      'Unlimited Hotspot Locations',
+      'Unlimited Customers & Vouchers',
+      '10,000 WhatsApp Message Alerts',
+      'API Access for Automated Gateway',
+      'Custom Bank Transfer Instructions',
+      'MikroTik Direct Sync Bridge (Future-ready)',
+      'Advanced Excel/PDF Financial Export',
+      'Priority 24/7 Premium Support',
+      'Up to 10 Sub-Staff Profiles',
+    ]
+  }
+];
+
+export const DefaultBusiness: HotspotBusiness = {
+  id: 'biz_1',
+  businessName: 'Starlink Elite Wi-Fi',
+  logoEmoji: '⚡',
+  logoBgColor: '#059669', // emerald-600
+  phone: '+234 812 345 6789',
+  whatsapp: '+234 812 345 6789',
+  location: 'Yaba, Lagos, Nigeria',
+  currency: 'NGN',
+  timezone: 'Africa/Lagos',
+  routerType: 'Starlink',
+  mikrotikIntegrationPlaceholder: false,
+  coverageArea: 'Yaba Student Hostels & Environs',
+  bankName: 'Moniepoint Microfinance Bank',
+  bankAccountNo: '8123456789',
+  bankAccountName: 'Yaba Wireless Links',
+  paymentInstructions: 'Transfer exact amount to our Moniepoint account. Upload screenshot or transaction ref immediately. Vouchers auto-generate post manual confirmation!',
+  whatsappProvider: 'Meta Cloud API',
+  whatsappApiKey: 'w_key_live_da984572h189ad98cf650b91e'
+};
+
+export const DefaultPlans: HotspotPlan[] = [
+  {
+    id: 'p_1',
+    name: '₦500 Daily Plan',
+    price: 500,
+    dataLimitGb: 5,
+    durationHours: 24,
+    speedLimitMbps: 5,
+    deviceLimit: 1,
+    validityPeriodDays: 1,
+    autoExpiry: true,
+    description: 'High-speed daily pass centered on students and remote workers. Best for heavy research or streaming.',
+    isActive: true,
+    isPopular: true
+  },
+  {
+    id: 'p_2',
+    name: '₦200 Mini Saver',
+    price: 200,
+    dataLimitGb: 1.5,
+    durationHours: 3,
+    speedLimitMbps: 3,
+    deviceLimit: 1,
+    validityPeriodDays: 1,
+    autoExpiry: true,
+    description: 'Ultra-low cost high-speed booster. Excellent for quick checks, social media chats, or emails.',
+    isActive: true
+  },
+  {
+    id: 'p_3',
+    name: '₦2,000 Weekly Lite',
+    price: 2000,
+    dataLimitGb: 25,
+    durationHours: 168,
+    speedLimitMbps: 8,
+    deviceLimit: 2,
+    validityPeriodDays: 7,
+    autoExpiry: true,
+    description: 'Weekly pass with high download volumes. Allows up to 2 devices connected concurrently.',
+    isActive: true
+  },
+  {
+    id: 'p_4',
+    name: '₦7,500 Unlimited Monthly',
+    price: 7500,
+    dataLimitGb: 150, // FUP
+    durationHours: 720,
+    speedLimitMbps: 15,
+    deviceLimit: 4,
+    validityPeriodDays: 30,
+    autoExpiry: true,
+    description: 'Monthly business tier with Fair Use Policy (FUP limit 150GB, then throttles to 2Mbps). Heavy usage friendly.',
+    isActive: true
+  }
+];
+
+export const DefaultCustomers: Customer[] = [
+  {
+    id: 'c_1',
+    name: 'Chinedu Okafor',
+    phone: '+234 803 111 2222',
+    whatsapp: '+234 803 111 2222',
+    activePlanId: 'p_3',
+    activePlanName: '₦2,000 Weekly Lite',
+    expiryTime: '2026-06-18T14:30:00Z',
+    totalSpend: 12500,
+    historyVouchersCount: 6,
+    isSuspended: false,
+    isBlacklisted: false,
+    notes: 'Yaba hostel block A room 12. Friendly regular customer, pays promptly.',
+    joinedDate: '2026-01-15'
+  },
+  {
+    id: 'c_2',
+    name: 'Amina Bello',
+    phone: '+234 809 333 4444',
+    whatsapp: '+234 809 333 4444',
+    activePlanId: 'p_1',
+    activePlanName: '₦500 Daily Plan',
+    expiryTime: '2026-06-13T09:15:00Z',
+    totalSpend: 3500,
+    historyVouchersCount: 7,
+    isSuspended: false,
+    isBlacklisted: false,
+    notes: 'Yaba Main Street Cyber enthusiast.',
+    joinedDate: '2026-02-10'
+  },
+  {
+    id: 'c_3',
+    name: 'Babajide Alao',
+    phone: '+234 812 555 6666',
+    whatsapp: '+234 812 555 6666',
+    activePlanId: 'p_4',
+    activePlanName: '₦7,500 Unlimited Monthly',
+    expiryTime: '2026-07-10T18:00:00Z',
+    totalSpend: 45000,
+    historyVouchersCount: 6,
+    isSuspended: false,
+    isBlacklisted: false,
+    notes: 'Local mini-cybercafe owner who resells access to co-working desks.',
+    joinedDate: '2025-11-01'
+  },
+  {
+    id: 'c_4',
+    name: 'Chioma Nnaji',
+    phone: '+234 905 777 8888',
+    whatsapp: '+234 905 777 8888',
+    activePlanId: undefined,
+    activePlanName: undefined,
+    expiryTime: undefined,
+    totalSpend: 1500,
+    historyVouchersCount: 3,
+    isSuspended: false,
+    isBlacklisted: false,
+    notes: 'Often uses daily passes for group discussion sessions on university compound.',
+    joinedDate: '2026-04-20'
+  },
+  {
+    id: 'c_5',
+    name: 'Emeka Obi',
+    phone: '+234 701 999 0000',
+    whatsapp: '+234 701 999 0000',
+    activePlanId: undefined,
+    activePlanName: undefined,
+    expiryTime: undefined,
+    totalSpend: 800,
+    historyVouchersCount: 4,
+    isSuspended: true,
+    isBlacklisted: false,
+    notes: 'Suspended for excessive torrenting on starter trials. Kept ignoring fair use warnings.',
+    joinedDate: '2026-03-05'
+  }
+];
+
+export const DefaultVouchers: Voucher[] = [
+  {
+    id: 'v_1',
+    code: 'PL8Q-CD44-AB12',
+    planId: 'p_3',
+    planName: '₦2,000 Weekly Lite',
+    planPrice: 2000,
+    status: 'active',
+    dateCreated: '2026-06-11T14:30:00Z',
+    dateUsed: '2026-06-11T14:35:00Z',
+    dateExpired: '2026-06-18T14:30:00Z',
+    durationHours: 168,
+    dataLimitGb: 25,
+    remainingDataGb: 21.4,
+    speedLimitMbps: 8,
+    customerName: 'Chinedu Okafor',
+    customerPhone: '+234 803 111 2222',
+    paymentReference: 'MP-TRSF-890251-X',
+    isMultiDevice: true,
+    deviceLimit: 2
+  },
+  {
+    id: 'v_2',
+    code: 'XQ72-MP41-LK9A',
+    planId: 'p_1',
+    planName: '₦500 Daily Plan',
+    planPrice: 500,
+    status: 'active',
+    dateCreated: '2026-06-12T09:15:00Z',
+    dateUsed: '2026-06-12T09:16:00Z',
+    dateExpired: '2026-06-13T09:15:00Z',
+    durationHours: 24,
+    dataLimitGb: 5,
+    remainingDataGb: 4.85,
+    speedLimitMbps: 5,
+    customerName: 'Amina Bello',
+    customerPhone: '+234 809 333 4444',
+    paymentReference: 'BANK-TRSF-550291-B',
+    isMultiDevice: false,
+    deviceLimit: 1
+  },
+  {
+    id: 'v_3',
+    code: 'PL8Q-LK9A-MK88',
+    planId: 'p_4',
+    planName: '₦7,500 Unlimited Monthly',
+    planPrice: 7500,
+    status: 'active',
+    dateCreated: '2026-06-10T18:00:00Z',
+    dateUsed: '2026-06-10T18:05:00Z',
+    dateExpired: '2026-07-10T18:00:00Z',
+    durationHours: 720,
+    dataLimitGb: 150,
+    remainingDataGb: 138.2,
+    speedLimitMbps: 15,
+    customerName: 'Babajide Alao',
+    customerPhone: '+234 812 555 6666',
+    paymentReference: 'OPAY-99210-91A',
+    isMultiDevice: true,
+    deviceLimit: 4
+  },
+  {
+    id: 'v_4',
+    code: 'ZZ99-KK11-MM44',
+    planId: 'p_2',
+    planName: '₦200 Mini Saver',
+    planPrice: 200,
+    status: 'expired',
+    dateCreated: '2026-06-05T10:00:00Z',
+    dateUsed: '2026-06-05T10:02:00Z',
+    dateExpired: '2026-06-05T13:00:00Z',
+    durationHours: 3,
+    dataLimitGb: 1.5,
+    remainingDataGb: 0.0,
+    speedLimitMbps: 3,
+    customerName: 'Chioma Nnaji',
+    customerPhone: '+234 905 777 8888',
+    paymentReference: 'MP-TRSF-50125-J',
+    isMultiDevice: false,
+    deviceLimit: 1
+  },
+  {
+    id: 'v_5',
+    code: 'BB77-YY11-PP99',
+    planId: 'p_1',
+    planName: '₦500 Daily Plan',
+    planPrice: 500,
+    status: 'used',
+    dateCreated: '2026-06-11T08:00:00Z',
+    dateUsed: '2026-06-11T08:02:00Z',
+    dateExpired: '2026-06-12T08:00:00Z',
+    durationHours: 24,
+    dataLimitGb: 5,
+    remainingDataGb: 0.0,
+    speedLimitMbps: 5,
+    customerName: 'Amina Bello',
+    customerPhone: '+234 809 333 4444',
+    paymentReference: 'TRSF-7782A',
+    isMultiDevice: false,
+    deviceLimit: 1
+  },
+  {
+    id: 'v_6',
+    code: 'MN56-RT89-PO23',
+    planId: 'p_2',
+    planName: '₦200 Mini Saver',
+    planPrice: 200,
+    status: 'active', // not used yet, waiting
+    dateCreated: '2026-06-12T01:00:00Z',
+    durationHours: 3,
+    dataLimitGb: 1.5,
+    remainingDataGb: 1.5,
+    speedLimitMbps: 3,
+    isMultiDevice: false,
+    deviceLimit: 1
+  },
+  {
+    id: 'v_7',
+    code: 'HG99-SA12-WQ88',
+    planId: 'p_1',
+    planName: '₦500 Daily Plan',
+    planPrice: 500,
+    status: 'active',
+    dateCreated: '2026-06-12T02:00:00Z',
+    durationHours: 24,
+    dataLimitGb: 5,
+    remainingDataGb: 5.0,
+    speedLimitMbps: 5,
+    isMultiDevice: false,
+    deviceLimit: 1
+  }
+];
+
+export const DefaultSessions: ActiveSession[] = [
+  {
+    id: 'sess_1',
+    customerName: 'Chinedu Okafor',
+    ipAddress: '192.168.88.24',
+    macAddress: '00:1A:2B:3C:4D:5E',
+    deviceType: 'Infinix Hot 30i',
+    dataUsedGb: 3.6,
+    uploadSpeedMbps: 0.8,
+    downloadSpeedMbps: 4.2,
+    connectedDuration: '04h 22m',
+    voucherCode: 'PL8Q-CD44-AB12'
+  },
+  {
+    id: 'sess_2',
+    customerName: 'Amina Bello',
+    ipAddress: '192.168.88.42',
+    macAddress: '74:DC:B8:31:0A:F4',
+    deviceType: 'iPhone 13 Pro',
+    dataUsedGb: 0.15,
+    uploadSpeedMbps: 1.2,
+    downloadSpeedMbps: 7.1,
+    connectedDuration: '00h 18m',
+    voucherCode: 'XQ72-MP41-LK9A'
+  },
+  {
+    id: 'sess_3',
+    customerName: 'Babajide Alao',
+    ipAddress: '192.168.88.10',
+    macAddress: '3C:F8:62:DA:DE:22',
+    deviceType: 'HP ProBook Windows 11',
+    dataUsedGb: 11.8,
+    uploadSpeedMbps: 2.1,
+    downloadSpeedMbps: 12.8,
+    connectedDuration: '10h 05m',
+    voucherCode: 'PL8Q-LK9A-MK88'
+  },
+  {
+    id: 'sess_4',
+    customerName: 'Babajide Alao (Staff Laptop)',
+    ipAddress: '192.168.88.11',
+    macAddress: 'BC:83:85:92:EF:01',
+    deviceType: 'Tecno Spark 10',
+    dataUsedGb: 2.4,
+    uploadSpeedMbps: 0.4,
+    downloadSpeedMbps: 3.9,
+    connectedDuration: '02h 11m',
+    voucherCode: 'PL8Q-LK9A-MK88'
+  }
+];
+
+export const DefaultPaymentRequests: PaymentRequest[] = [
+  {
+    id: 'req_1',
+    customerName: 'Kelechi Amadi',
+    customerPhone: '+234 812 700 8000',
+    planId: 'p_1',
+    planName: '₦500 Daily Plan',
+    planPrice: 500,
+    screenshotUrl: 'https://images.unsplash.com/photo-1616077168079-7e09a677fb2c?q=80&w=600&auto=format&fit=crop',
+    reference: 'REF-OPAY-44109281',
+    status: 'Awaiting Approval',
+    timestamp: '2026-06-12T04:10:00Z',
+    whatsappDelivered: false
+  },
+  {
+    id: 'req_2',
+    customerName: 'Fatima Yusuf',
+    customerPhone: '+234 902 400 3000',
+    planId: 'p_3',
+    planName: '₦2,000 Weekly Lite',
+    planPrice: 2000,
+    screenshotUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600&auto=format&fit=crop',
+    reference: 'REF-GTB-882012903',
+    status: 'Awaiting Approval',
+    timestamp: '2026-06-12T04:25:00Z',
+    whatsappDelivered: false
+  },
+  {
+    id: 'req_3',
+    customerName: 'Tunde Bakare',
+    customerPhone: '+234 810 500 6000',
+    planId: 'p_4',
+    planName: '₦7,500 Unlimited Monthly',
+    planPrice: 7500,
+    screenshotUrl: 'https://images.unsplash.com/photo-1543269865-cbf427effbad?q=80&w=600&auto=format&fit=crop',
+    reference: 'REF-ACCESS-00392019',
+    status: 'Requested',
+    timestamp: '2026-06-11T21:40:00Z',
+    whatsappDelivered: false
+  }
+];
+
+export const DefaultSuperTenants: TenantHotspotBusiness[] = [
+  {
+    id: 't_1',
+    businessName: 'Starlink Elite Wi-Fi',
+    ownerName: 'Johnny BGSU',
+    ownerEmail: 'johnnybgsu@gmail.com',
+    joinedDate: '2026-01-10',
+    planId: 'growth',
+    status: 'active',
+    totalVouchersSold: 1420,
+    totalRevenueNaira: 1250000
+  },
+  {
+    id: 't_2',
+    businessName: 'Nasarawa Hostels Starlink',
+    ownerName: 'Alhaji Ibrahim Musa',
+    ownerEmail: 'ibrahim@nasarawahotspots.ng',
+    joinedDate: '2026-02-15',
+    planId: 'starter',
+    status: 'active',
+    totalVouchersSold: 320,
+    totalRevenueNaira: 240000
+  },
+  {
+    id: 't_3',
+    businessName: 'Campus Express Wi-Fi (UniBen)',
+    ownerName: 'Osas Efe',
+    ownerEmail: 'osas.wireless@uniben.edu.ng',
+    joinedDate: '2026-03-01',
+    planId: 'business',
+    status: 'active',
+    totalVouchersSold: 3950,
+    totalRevenueNaira: 4200000
+  },
+  {
+    id: 't_4',
+    businessName: 'Yaba Tech QuickNet',
+    ownerName: 'Segun Alabi',
+    ownerEmail: 'segun@yabatechquick.net',
+    joinedDate: '2025-12-12',
+    planId: 'growth',
+    status: 'suspended',
+    totalVouchersSold: 110,
+    totalRevenueNaira: 85000
+  },
+  {
+    id: 't_5',
+    businessName: 'Kano Cyber Connect',
+    ownerName: 'Umar Abdullahi',
+    ownerEmail: 'umar@cyberconnect.com.ng',
+    joinedDate: '2026-04-05',
+    planId: 'starter',
+    status: 'active',
+    totalVouchersSold: 140,
+    totalRevenueNaira: 89000
+  }
+];
+
+export const DefaultMessageLogs: WhatsAppMessageLog[] = [
+  {
+    id: 'msg_1',
+    recipientName: 'Chinedu Okafor',
+    recipientPhone: '+234 803 111 2222',
+    messageType: 'voucher',
+    content: `Hello Chinedu Okafor\n\nYour Wi-Fi voucher is ready.\n\nPlan: ₦2,000 Weekly Lite\nVoucher Code: PL8Q-CD44-AB12\nData Limit: 25 GB\nExpiry: 7 days\n\nThank you for choosing Starlink Elite Wi-Fi!`,
+    status: 'Delivered',
+    timestamp: '2026-06-11T14:35:00Z',
+    planName: '₦2,000 Weekly Lite',
+    voucherCode: 'PL8Q-CD44-AB12'
+  },
+  {
+    id: 'msg_2',
+    recipientName: 'Amina Bello',
+    recipientPhone: '+234 809 333 4444',
+    messageType: 'voucher',
+    content: `Hello Amina Bello\n\nYour Wi-Fi voucher is ready.\n\nPlan: ₦500 Daily Plan\nVoucher Code: XQ72-MP41-LK9A\nData Limit: 5 GB\nExpiry: 24 hours\n\nThank you for choosing Starlink Elite Wi-Fi!`,
+    status: 'Delivered',
+    timestamp: '2026-06-12T09:16:00Z',
+    planName: '₦500 Daily Plan',
+    voucherCode: 'XQ72-MP41-LK9A'
+  },
+  {
+    id: 'msg_3',
+    recipientName: 'Emeka Obi',
+    recipientPhone: '+234 701 999 0000',
+    messageType: 'announcement',
+    content: `Hello Emeka Obi, this is to inform you that your account has been suspended due to violations of torrent/download usage guidelines on the student starter trial. Please contact management to restore.`,
+    status: 'Delivered',
+    timestamp: '2026-06-11T18:00:00Z'
+  }
+];
+
+// LocalStorage helpers
+export const loadLocalData = <T>(key: string, defaults: T): T => {
+  try {
+    const saved = localStorage.getItem(`hotspot_${key}`);
+    return saved ? JSON.parse(saved) : defaults;
+  } catch (e) {
+    return defaults;
+  }
+};
+
+export const saveLocalData = <T>(key: string, data: T): void => {
+  try {
+    localStorage.setItem(`hotspot_${key}`, JSON.stringify(data));
+  } catch (e) {
+    console.error('Failed to save to localStorage', e);
+  }
+};

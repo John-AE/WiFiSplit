@@ -1,0 +1,6 @@
+{
+  "name": "WiFiSplit",
+  "description": "Enterprise management portal for Starlink and neighborhood Wi-Fi hotspot businesses in Nigeria & Africa.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
