@@ -8,7 +8,7 @@ import { HotspotBusiness, HotspotPlan, Voucher, Customer, ActiveSession, Payment
 import { 
   Wifi, ShieldAlert, ArrowUpRight, TrendingUp, Users, Radio, MessageSquare, 
   Settings, Banknote, ListCollapse, Plus, Search, CheckCircle, XCircle, Trash2, 
-  Copy, RefreshCw, Printer, AlertCircle, FileText, Smartphone, Ban, Settings2, Sparkles, Check, CheckCircle2, ChevronRight, Share2
+  Copy, RefreshCw, Printer, AlertCircle, FileText, Smartphone, Ban, Settings2, Sparkles, Check, CheckCircle2, ChevronRight, Share2, Mail, ExternalLink
 } from 'lucide-react';
 
 interface OwnerDashboardProps {
@@ -114,6 +114,16 @@ export default function OwnerDashboard({
 
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [alertMsgRef, setAlertMsgRef] = useState<string | null>(null);
+  const [dispatchFeedback, setDispatchFeedback] = useState<{
+    customerName: string;
+    customerPhone: string;
+    customerEmail?: string;
+    voucherCode: string;
+    planName: string;
+    planPrice: number;
+    whatsAppText: string;
+    emailStatus: 'Pending' | 'Sent Successfully' | 'API Key Missing (Simulated)' | 'Failed';
+  } | null>(null);
 
   // Stats calculation
   const totalApprovalsNeeded = paymentRequests.filter((r) => r.status === 'Awaiting Approval').length;
@@ -307,7 +317,7 @@ export default function OwnerDashboard({
     triggerAlert(`WhatsApp message logs appended. Redispacthed voucher pass to ${v.customerPhone}!`);
   };
 
-  const handleApprovePayloadPayment = (req: PaymentRequest) => {
+  const handleApprovePayloadPayment = async (req: PaymentRequest) => {
     // 1. Trigger parent approve payments
     onApprovePayment(req.id);
 
@@ -317,24 +327,25 @@ export default function OwnerDashboard({
       id: `v_auto_aprv_${Date.now()}`,
       code: generateRandomCode(),
       planId: associatedPlan.id,
-      planName: associatedPlan.name,
-      planPrice: associatedPlan.price,
+      planName: associatedPlan?.name || '₦500 Plan',
+      planPrice: associatedPlan?.price || 500,
       status: 'active',
       dateCreated: new Date().toISOString(),
-      durationHours: associatedPlan.durationHours,
-      dataLimitGb: associatedPlan.dataLimitGb,
-      remainingDataGb: associatedPlan.dataLimitGb || 999,
-      speedLimitMbps: associatedPlan.speedLimitMbps,
+      durationHours: associatedPlan?.durationHours || 24,
+      dataLimitGb: associatedPlan?.dataLimitGb || 10,
+      remainingDataGb: associatedPlan?.dataLimitGb || 10,
+      speedLimitMbps: associatedPlan?.speedLimitMbps || 5,
       customerName: req.customerName,
       customerPhone: req.customerPhone,
-      isMultiDevice: associatedPlan.deviceLimit > 1,
-      deviceLimit: associatedPlan.deviceLimit
+      customerEmail: req.customerEmail,
+      isMultiDevice: (associatedPlan?.deviceLimit || 1) > 1,
+      deviceLimit: associatedPlan?.deviceLimit || 1
     };
 
     onAddVoucher(generatedVch);
 
-    // 3. Dispatch instantly via WhatsApp simulated gateway
-    const messageContent = `Hello ${req.customerName}\n\nYour payment of ₦${req.planPrice} has been CONFIRMED!\n\nYour Wi-Fi Voucher PIN is ready.\n\nPlan Name: ${associatedPlan.name}\nVoucher PIN: ${generatedVch.code}\nSpeed limit: ${associatedPlan.speedLimitMbps} Mbps\n\nInstructions: Search on Wi-Fi settings, connect to ${business.businessName}, type this PIN in the slide-down web popup.\n\nEnjoy Starlink high speed!`;
+    // 3. Dispatch instantly via WhatsApp simulated gateway + real link
+    const messageContent = `Hello ${req.customerName}\n\nYour payment of ₦${req.planPrice.toLocaleString()} has been CONFIRMED!\n\nYour Wi-Fi Voucher PIN is ready.\n\nPlan Name: ${associatedPlan.name}\nVoucher PIN: ${generatedVch.code}\nSpeed limit: ${associatedPlan.speedLimitMbps} Mbps\n\nInstructions: Search on Wi-Fi settings, connect to ${business.businessName}, type this PIN in the slide-down web popup.\n\nEnjoy Starlink high speed!`;
 
     onAddMessageLog({
       id: `msg_confirm_${Date.now()}`,
@@ -348,7 +359,98 @@ export default function OwnerDashboard({
       voucherCode: generatedVch.code
     });
 
-    triggerAlert(`Payment approved manually! Secure voucher (${generatedVch.code}) dispatched to ${req.customerName} via WhatsApp.`);
+    let emailStatus: 'Pending' | 'Sent Successfully' | 'API Key Missing (Simulated)' | 'Failed' = 'Pending';
+    
+    if (req.customerEmail) {
+      const apiKey = (import.meta as any).env?.VITE_RESEND_API_KEY;
+      if (apiKey && apiKey.trim().length > 0) {
+        try {
+          const res = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              from: `${business.businessName} Wifi <onboarding@resend.dev>`,
+              to: req.customerEmail,
+              subject: `${business.businessName} - your Wi-Fi voucher PIN is ready!`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e8ed; border-radius: 8px;">
+                  <h2 style="color: #2b6cb0; text-align: center;">⚡ ${business.businessName} Wi-Fi</h2>
+                  <p>Hello <strong>${req.customerName}</strong>,</p>
+                  <p>Your payment has been successfully confirmed. Find your Wi-Fi passcode credentials below:</p>
+                  
+                  <div style="background-color: #f7fafc; border: 1px dashed #cbd5e0; padding: 15px; border-radius: 6px; text-align: center; margin: 20px 0;">
+                    <span style="font-size: 11px; text-transform: uppercase; color: #a0aec0; letter-spacing: 1px;">Access Code PIN</span>
+                    <h3 style="font-size: 24px; color: #2d3748; margin: 5px 0; font-family: monospace; letter-spacing: 2px;">${generatedVch.code}</h3>
+                  </div>
+
+                  <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                    <tr>
+                      <td style="padding: 6px 0; color: #718096;">Internet Plan:</td>
+                      <td style="padding: 6px 0; text-align: right; font-weight: bold;">${associatedPlan.name}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 6px 0; color: #718096;">Speed Profile:</td>
+                      <td style="padding: 6px 0; text-align: right; font-weight: bold; color: #319795;">⚡ ${associatedPlan.speedLimitMbps} Mbps</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 6px 0; color: #718096;">Device Limit:</td>
+                      <td style="padding: 6px 0; text-align: right; font-weight: bold;">${associatedPlan.deviceLimit} Device(s)</td>
+                    </tr>
+                  </table>
+
+                  <div style="margin-top: 20px; font-size: 13px; color: #4a5568; line-height: 1.5; border-top: 1px solid #edf2f7; padding-top: 15px;">
+                    <p style="font-weight: bold; margin-bottom: 5px;">Immediate Setup Steps:</p>
+                    <ol style="margin-top: 5px; padding-left: 20px;">
+                      <li>Turn on your device's Wi-Fi.</li>
+                      <li>Select and connect to: <strong>${business.businessName}</strong></li>
+                      <li>In the login popup window, type the <strong>Access Code PIN</strong> displayed above.</li>
+                    </ol>
+                  </div>
+                  
+                  <p style="font-size: 11px; color: #a0aec0; text-align: center; margin-top: 30px;">
+                    Powered by WiFiSplit™ for Starlink Smart Hotspots. Thank you!
+                  </p>
+                </div>
+              `
+            })
+          });
+          if (res.ok) {
+            emailStatus = 'Sent Successfully';
+          } else {
+            emailStatus = 'Failed';
+          }
+        } catch (e) {
+          emailStatus = 'Failed';
+        }
+      } else {
+        emailStatus = 'API Key Missing (Simulated)';
+      }
+    }
+
+    setDispatchFeedback({
+      customerName: req.customerName,
+      customerPhone: req.customerPhone,
+      customerEmail: req.customerEmail,
+      voucherCode: generatedVch.code,
+      planName: associatedPlan.name,
+      planPrice: associatedPlan.price,
+      whatsAppText: messageContent,
+      emailStatus: req.customerEmail ? emailStatus : 'Pending'
+    });
+
+    // Auto open WhatsApp chat window in new tab to launch local application
+    try {
+      const cleanPhone = req.customerPhone.replace(/[^\d]/g, '');
+      const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageContent)}`;
+      window.open(waUrl, '_blank');
+    } catch (e) {
+      console.warn("Popup block prevented automatic WhatsApp redirect, click manual launch instead.");
+    }
+
+    triggerAlert(`Payment approved manually! Secure voucher (${generatedVch.code}) dispatched.`);
   };
 
   const handleCopy = (code: string) => {
@@ -1857,6 +1959,120 @@ export default function OwnerDashboard({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 4: Voucher Dispatch Feedback Hub */}
+      {dispatchFeedback && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div className="text-center pb-4 border-b border-slate-100">
+              <span className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center text-xl mx-auto mb-2 font-bold">
+                ✓
+              </span>
+              <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Voucher Active & Dispatched!</h3>
+              <p className="text-[11px] text-slate-400">Payment received and manual verification completed successfully</p>
+            </div>
+
+            <div className="my-4 space-y-3.5">
+              {/* Voucher Card details */}
+              <div className="p-4 bg-brand-50/20 border border-brand-100 rounded-xl relative overflow-hidden">
+                <div className="auto-layout flex justify-between items-start">
+                  <div>
+                    <h4 className="text-[10px] font-black text-brand-900 uppercase">ACCESS CODE PIN</h4>
+                    <code className="text-xl font-mono font-black text-brand-600 block tracking-widest mt-1">
+                      {dispatchFeedback.voucherCode}
+                    </code>
+                  </div>
+                  <button
+                    onClick={() => handleCopy(dispatchFeedback.voucherCode)}
+                    className="px-2.5 py-1 bg-white hover:bg-brand-50 border border-slate-200 hover:border-brand-300 rounded text-[10px] font-bold text-slate-600 flex items-center gap-1.5 transition-colors"
+                  >
+                    <Copy className="w-3 h-3" /> Copy
+                  </button>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-500 border-t border-brand-100/30 pt-2.5">
+                  <div>Subscriber: <strong className="text-slate-800 block">{dispatchFeedback.customerName}</strong></div>
+                  <div>Plan Package: <strong className="text-slate-800 block">{dispatchFeedback.planName}</strong></div>
+                </div>
+              </div>
+
+              {/* WhatsApp Delivery Panel */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200/60 rounded-xl space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">💬 WHATSAPP STATUS DISPATCH:</span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
+                    🟢 Dispatched
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  An automatic redirect was fired in your browser to launch the local WhatsApp app chat window with the prefilled passcode message. Click below to re-dispatch any time.
+                </p>
+                <button
+                  onClick={() => {
+                    const cleanPhone = dispatchFeedback.customerPhone.replace(/[^\d]/g, '');
+                    const waUrl = `https://wa.me/${cleanPhone}/?text=${encodeURIComponent(dispatchFeedback.whatsAppText)}`;
+                    window.open(waUrl, '_blank');
+                  }}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold uppercase flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-600/10"
+                >
+                  <Share2 className="w-3.5 h-3.5" /> Re-launch Device WhatsApp Client
+                </button>
+              </div>
+
+              {/* Email Delivery Panel */}
+              {dispatchFeedback.customerEmail && (
+                <div className="p-3.5 bg-slate-50 border border-slate-200/60 rounded-xl space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">✉️ EMAIL TICKET SERVICE:</span>
+                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase ${
+                        dispatchFeedback.emailStatus === 'Sent Successfully' ? 'bg-emerald-100 text-emerald-800' :
+                        dispatchFeedback.emailStatus === 'API Key Missing (Simulated)' ? 'bg-sky-100 text-sky-800 border border-sky-200' : 'bg-rose-100 text-rose-850'
+                    }`}>
+                      {dispatchFeedback.emailStatus}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-normal">
+                    {dispatchFeedback.emailStatus === 'Sent Successfully' 
+                      ? `The beautifully styled e-voucher was dispatched successfully to ${dispatchFeedback.customerEmail} using your Resend Account credentials.`
+                      : `Live e-voucher ticket delivery simulation active to: ${dispatchFeedback.customerEmail}. Configure VITE_RESEND_API_KEY in the environment secrets list to trigger live Resend delivery.`
+                    }
+                  </p>
+
+                  {/* Styled Email Client Box Mock Preview representing what the Resend template looks like */}
+                  <div className="border border-slate-250 rounded-lg bg-white p-3 text-[11.5px] text-slate-600 font-sans space-y-1">
+                    <div className="text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100 pb-1.5 mb-2 flex justify-between items-center">
+                      <span>Styled Resend HTML Template Preview:</span>
+                      <span className="text-brand-600">Premium E-Ticket</span>
+                    </div>
+                    <div className="p-3 border border-brand-100 bg-brand-50/5 rounded-md">
+                      <div className="text-center font-black text-brand-900 border-b border-brand-50 pb-1.5 mb-2 text-xs">
+                        ⚡ {business.businessName} Wi-Fi
+                      </div>
+                      <p>Hello <strong>{dispatchFeedback.customerName}</strong>,</p>
+                      <p className="mt-1">Your payment of ₦{dispatchFeedback.planPrice.toLocaleString()} is confirmed. Find your Starlink Access Code PIN:</p>
+                      <div className="my-3 p-2 bg-slate-50 border border-dashed border-slate-200 text-center rounded font-mono font-black text-brand-600 text-sm tracking-widest">
+                        {dispatchFeedback.voucherCode}
+                      </div>
+                      <div className="text-[9.5px] text-slate-400">
+                        Plan: {dispatchFeedback.planName} | Support line: {business.whatsapp}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setDispatchFeedback(null)}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-950 text-white rounded-xl text-xs font-bold uppercase transition-all"
+              >
+                Got it, Close Dispatch
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -38,6 +38,7 @@ export default function CustomerPortal({
 
   const [userName, setUserName] = useState('');
   const [userPhone, setUserPhone] = useState('');
+  const [userEmail, setUserEmail] = useState('');
   const [userRef, setUserRef] = useState('');
   
   // App states
@@ -81,6 +82,7 @@ export default function CustomerPortal({
     onSubmitPaymentRequest({
       customerName: userName,
       customerPhone: userPhone,
+      customerEmail: userEmail,
       planId: selectedPlanId,
       planName: selectedPlan?.name || '₦500 Plan',
       planPrice: selectedPlan?.price || 500,
@@ -312,7 +314,7 @@ export default function CustomerPortal({
                 <p className="text-slate-500 text-xs mt-1">Select a pricing model plan package below and transfer to launch!</p>
               </div>
             ) : (
-              <div className="space-y-4 max-h-[540px] overflow-y-auto pr-1 scrollbar-thin">
+              <div className="space-y-4 max-h-[460px] overflow-y-auto pr-1 scrollbar-thin">
                 {myActiveVouchers.map((voucher) => {
                   const percentLeft = (voucher.remainingDataGb / voucher.dataLimitGb) * 100;
                   return (
@@ -479,6 +481,20 @@ export default function CustomerPortal({
                   className="w-full text-xs border border-slate-200 rounded-lg p-2.5 focus:outline-none font-semibold"
                   required
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Email Address (Optional for Email PIN Delivery)</label>
+                <input
+                  type="email"
+                  placeholder="e.g. customer@example.com"
+                  value={userEmail}
+                  onChange={(e) => setUserEmail(e.target.value)}
+                  className="w-full text-xs border border-slate-200 rounded-lg p-2.5 focus:outline-none font-semibold bg-white text-slate-800"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  💡 Fill this to auto-deliver your voucher ticket right into your email inbox upon owner approval.
+                </span>
               </div>
 
               <div>

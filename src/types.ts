@@ -36,6 +36,7 @@ export interface Voucher {
   speedLimitMbps: number;
   customerName?: string;
   customerPhone?: string;
+  customerEmail?: string;
   paymentScreenshot?: string;
   paymentReference?: string;
   isMultiDevice: boolean;
@@ -121,6 +122,7 @@ export interface PaymentRequest {
   id: string;
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
   planId: string;
   planName: string;
   planPrice: number;
