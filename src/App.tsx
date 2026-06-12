@@ -30,9 +30,14 @@ export default function App() {
     loadLocalData<HotspotBusiness>('business_profile', DefaultBusiness)
   );
 
-  const [plans, setPlans] = useState<HotspotPlan[]>(() => 
-    loadLocalData<HotspotPlan[]>('plans', DefaultPlans)
-  );
+  const [plans, setPlans] = useState<HotspotPlan[]>(() => {
+    const loaded = loadLocalData<HotspotPlan[]>('plans', []);
+    if (loaded.length < 10) {
+      saveLocalData('plans', DefaultPlans);
+      return DefaultPlans;
+    }
+    return loaded;
+  });
 
   const [vouchers, setVouchers] = useState<Voucher[]>(() => 
     loadLocalData<Voucher[]>('vouchers', DefaultVouchers)

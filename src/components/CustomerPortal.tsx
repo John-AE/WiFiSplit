@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Voucher, HotspotPlan, PaymentRequest, HotspotBusiness } from '../types';
-import { Wifi, Timer, RotateCcw, Send, ShoppingBag, Sparkles, CheckCircle2, Copy, Trash2, ArrowUpRight, MessageCircle, RefreshCw, Smartphone } from 'lucide-react';
+import { Wifi, Timer, RotateCcw, Send, ShoppingBag, Sparkles, CheckCircle2, Copy, Trash2, ArrowUpRight, MessageCircle, RefreshCw, Smartphone, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 
 interface CustomerPortalProps {
   vouchers: Voucher[];
@@ -26,6 +26,16 @@ export default function CustomerPortal({
 }: CustomerPortalProps) {
   // Toggle select plan
   const [selectedPlanId, setSelectedPlanId] = useState<string>(plans[0]?.id || '');
+  const [selectedValidity, setSelectedValidity] = useState<string>('all');
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  const scrollCarousel = (direction: 'left' | 'right') => {
+    if (carouselRef.current) {
+      const scrollAmount = direction === 'left' ? -240 : 240;
+      carouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
+
   const [userName, setUserName] = useState('');
   const [userPhone, setUserPhone] = useState('');
   const [userRef, setUserRef] = useState('');
@@ -124,6 +134,163 @@ export default function CustomerPortal({
               <span className="block text-[9px] text-brand-300 uppercase tracking-wide">Starlink speed</span>
               <span className="text-base font-bold text-emerald-300">{speedDownload.toFixed(1)} Mb/s</span>
             </div>
+          </div>
+        </div>
+      </div>
+ 
+      {/* ⚡ Hotspot Plans Carousel Section */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <div>
+            <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-brand-500 animate-bounce" /> Select Your High-Speed Wi-Fi Ticket Plan
+            </h4>
+            <p className="text-xs text-slate-400 mt-1">
+              Select an option from our 17 flexible validity tiers below. Click any card to select it.
+            </p>
+          </div>
+          
+          {/* Validity periods at the top */}
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 md:pb-0">
+            {[
+              { id: 'all', label: 'All Tiers' },
+              { id: '1', label: '⏳ 1 Day / 24h' },
+              { id: '7', label: '🗓️ 7 Days' },
+              { id: '14', label: '🗓️ 14 Days' },
+              { id: '30', label: '⏳ 30 Days' }
+            ].map((cat) => {
+              const tabActive = selectedValidity === cat.id;
+              const count = cat.id === 'all' 
+                ? plans.length 
+                : plans.filter(p => p.validityPeriodDays.toString() === cat.id).length;
+              
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSelectedValidity(cat.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap smooth-transition flex items-center gap-1.5 border ${
+                    tabActive
+                      ? 'bg-brand-600 text-white border-brand-600 shadow-sm'
+                      : 'bg-slate-50 text-slate-600 border-slate-200/80 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>{cat.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    tabActive ? 'bg-brand-800 text-brand-200' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Carousel containing the mini cards */}
+        <div className="relative group/carousel">
+          {/* Left Arrow */}
+          <button
+            type="button"
+            onClick={() => scrollCarousel('left')}
+            className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 bg-white border border-slate-200 p-2 rounded-full shadow-md hover:bg-slate-50 transition-all active:scale-95 group-hover/carousel:opacity-100 opacity-80"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="w-4 h-4 text-slate-600" />
+          </button>
+
+          {/* Right Arrow */}
+          <button
+            type="button"
+            onClick={() => scrollCarousel('right')}
+            className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 bg-white border border-slate-200 p-2 rounded-full shadow-md hover:bg-slate-50 transition-all active:scale-95 group-hover/carousel:opacity-100 opacity-80"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="w-4 h-4 text-slate-600" />
+          </button>
+
+          {/* Core scroll viewport */}
+          <div
+            ref={carouselRef}
+            className="flex gap-4 overflow-x-auto pb-4 pt-1 px-1 scroll-smooth scrollbar-none"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {plans
+              .filter(p => selectedValidity === 'all' || p.validityPeriodDays.toString() === selectedValidity)
+              .map((plan) => {
+                const isSelected = selectedPlanId === plan.id;
+                
+                // Formulate data limit string format
+                const isMb = plan.dataLimitGb < 1;
+                const formattedData = isMb 
+                  ? `${plan.dataLimitGb * 1000} MB` 
+                  : `${plan.dataLimitGb} GB`;
+
+                return (
+                  <div
+                    key={plan.id}
+                    onClick={() => setSelectedPlanId(plan.id)}
+                    className={`min-w-[200px] md:min-w-[220px] bg-white border-2 rounded-2xl p-4 cursor-pointer relative smooth-transition flex flex-col justify-between shrink-0 select-none ${
+                      isSelected
+                        ? 'border-brand-500 bg-brand-50/5 ring-4 ring-brand-500/10 shadow-md scale-[1.01]'
+                        : 'border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
+                    }`}
+                  >
+                    {/* Selected Check Indicator */}
+                    {isSelected && (
+                      <span className="absolute -top-2.5 right-4 bg-brand-500 text-white rounded-full p-1 border border-white shadow-md">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </span>
+                    )}
+
+                    <div>
+                      {/* Validity Period Tag */}
+                      <span className="inline-block text-[9px] font-black uppercase text-brand-700 bg-brand-50 px-2.5 py-0.5 rounded-full">
+                        {plan.validityPeriodDays === 1 ? '1 Day / 24h' : `${plan.validityPeriodDays} Days`}
+                      </span>
+
+                      {/* Data Cap & Price Details */}
+                      <div className="mt-3">
+                        <h5 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none flex items-baseline">
+                          ₦{plan.price.toLocaleString()}
+                        </h5>
+                        <p className="text-xs font-black text-brand-600 uppercase mt-1 leading-none tracking-tight">
+                          ⚡ {formattedData} LIMIT
+                        </p>
+                      </div>
+
+                      {/* Small Plan Details */}
+                      <p className="text-slate-500 text-[10.5px] mt-2 leading-snug font-medium max-w-[190px]">
+                        {plan.description}
+                      </p>
+                    </div>
+
+                    {/* Specifications List */}
+                    <div className="mt-3.5 pt-2.5 border-t border-slate-100 space-y-1">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-semibold">
+                        <span>Speed Limit:</span>
+                        <span className="font-bold text-slate-800">⚡ {plan.speedLimitMbps} Mbps</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-semibold">
+                        <span>Concurrent:</span>
+                        <span className="font-bold text-slate-800">📱 {plan.deviceLimit} {plan.deviceLimit === 1 ? 'Device' : 'Devices'}</span>
+                      </div>
+                    </div>
+
+                    {/* Selector indicator action button */}
+                    <button
+                      type="button"
+                      className={`w-full mt-3.5 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-colors ${
+                        isSelected 
+                          ? 'bg-brand-600 text-white' 
+                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                      }`}
+                    >
+                      {isSelected ? '✓ Plan Selected' : 'Choose Plan'}
+                    </button>
+                  </div>
+                );
+              })}
           </div>
         </div>
       </div>
@@ -263,11 +430,11 @@ export default function CustomerPortal({
               
               {/* Plan dropdown selection */}
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">1. Select Target Plan</label>
+                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">1. Selected Ticket Plan</label>
                 <select
                   value={selectedPlanId}
                   onChange={(e) => setSelectedPlanId(e.target.value)}
-                  className="w-full text-xs font-extrabold border border-slate-200 rounded-lg p-2.5 focus:outline-none"
+                  className="w-full text-xs font-extrabold border border-slate-200 rounded-lg p-2.5 focus:outline-none bg-white text-slate-800"
                 >
                   {plans.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -275,6 +442,9 @@ export default function CustomerPortal({
                     </option>
                   ))}
                 </select>
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  💡 Hint: Selecting any plan in the sliding carousel at the top automatically synchronizes this target.
+                </span>
               </div>
 
               {/* Bank Account Instruction Template */}
