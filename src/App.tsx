@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  // 1. Core Persistent States from localStorage
+  // 1. Core Persistent States from localStorage (acts as synchronous fast initial load and safe offline fallback)
   const [business, setBusiness] = useState<HotspotBusiness>(() => {
     const loaded = loadLocalData<HotspotBusiness>('business_profile', DefaultBusiness);
     if (!loaded.bankName || loaded.bankName.includes('Moniepoint')) {
@@ -91,7 +91,6 @@ export default function App() {
   );
 
   // 2. Active Session Testing Role
-  // Support four roles: 'landing' | 'owner' | 'customer' | 'super'
   const [currentRole, setCurrentRole] = useState<'landing' | 'owner' | 'customer' | 'super'>('landing');
 
   // Multi-state helper UI elements
@@ -105,7 +104,169 @@ export default function App() {
   const [adminPasscode, setAdminPasscode] = useState('');
   const [adminLoginError, setAdminLoginError] = useState('');
 
-  // 3. Save states on trigger
+  // Live Database Sync Indicator Badge
+  const [dbStatusInfo, setDbStatusInfo] = useState<{ status: string; error?: string; neonActive: boolean }>({
+    status: 'checking',
+    neonActive: false
+  });
+
+  // DB Sync helper API calls
+  const updateBusinessApi = async (updatedBiz: HotspotBusiness) => {
+    try {
+      await fetch('/api/business', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedBiz),
+      });
+    } catch (e) {
+      console.warn('API update business failed:', e);
+    }
+  };
+
+  const savePlanApi = async (p: HotspotPlan) => {
+    try {
+      await fetch('/api/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(p),
+      });
+    } catch (e) {
+      console.warn('API save plan failed:', e);
+    }
+  };
+
+  const deletePlanApi = async (id: string) => {
+    try {
+      await fetch(`/api/plans/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.warn('API delete plan failed:', e);
+    }
+  };
+
+  const saveCustomerApi = async (c: Customer) => {
+    try {
+      await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(c),
+      });
+    } catch (e) {
+      console.warn('API save customer failed:', e);
+    }
+  };
+
+  const submitPaymentRequestApi = async (pay: PaymentRequest) => {
+    try {
+      await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pay),
+      });
+    } catch (e) {
+      console.warn('API submit payment failed:', e);
+    }
+  };
+
+  const saveVoucherApi = async (vch: Voucher) => {
+    try {
+      await fetch('/api/vouchers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(vch),
+      });
+    } catch (e) {
+      console.warn('API save voucher failed:', e);
+    }
+  };
+
+  const saveMsgLogApi = async (log: WhatsAppMessageLog) => {
+    try {
+      await fetch('/api/message-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(log),
+      });
+    } catch (e) {
+      console.warn('API save message log failed:', e);
+    }
+  };
+
+  const disconnectSessionApi = async (id: string) => {
+    try {
+      await fetch('/api/sessions/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+    } catch (e) {
+      console.warn('API disconnect session failed:', e);
+    }
+  };
+
+  const postAnnouncementApi = async (content: string) => {
+    try {
+      await fetch('/api/operator/announcement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ announcement: content }),
+      });
+    } catch (e) {
+      console.warn('API post announcement failed:', e);
+    }
+  };
+
+  const upgradeSaaSTierApi = async (tier: string) => {
+    try {
+      await fetch('/api/operator/saas-tier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ saasTier: tier }),
+      });
+    } catch (e) {
+      console.warn('API upgrade SaaS level failed:', e);
+    }
+  };
+
+  // Synchronise state on load from Cloud DB if accessible
+  useEffect(() => {
+    async function loadAllDbData() {
+      try {
+        const statusRes = await fetch('/api/db-status');
+        const statusData = await statusRes.json();
+        setDbStatusInfo(statusData);
+
+        if (statusData.neonActive) {
+          const [bizRes, planRes, vchRes, custRes, payRes, logRes, opRes] = await Promise.all([
+            fetch('/api/business').then(r => r.json()),
+            fetch('/api/plans').then(r => r.json()),
+            fetch('/api/vouchers').then(r => r.json()),
+            fetch('/api/customers').then(r => r.json()),
+            fetch('/api/payments').then(r => r.json()),
+            fetch('/api/message-logs').then(r => r.json()),
+            fetch('/api/operator').then(r => r.json())
+          ]);
+
+          if (bizRes && bizRes.id) setBusiness(bizRes);
+          if (planRes && Array.isArray(planRes)) setPlans(planRes);
+          if (vchRes && Array.isArray(vchRes)) setVouchers(vchRes);
+          if (custRes && Array.isArray(custRes)) setCustomers(custRes);
+          if (payRes && Array.isArray(payRes)) setPaymentRequests(payRes);
+          if (logRes && Array.isArray(logRes)) setMessageLogs(logRes);
+          if (opRes) {
+            if (opRes.announcement) setAnnouncement(opRes.announcement);
+            if (opRes.saasTier) setCurrentSaaSTier(opRes.saasTier);
+          }
+          console.log('⚡ All components initialized from Neon Postgres secure schemas.');
+        }
+      } catch (err) {
+        console.warn('⚠️ API server unreachable. Running in stand-alone local localStorage simulation backup modes:', err);
+        setDbStatusInfo({ status: 'simulation_standalone', neonActive: false });
+      }
+    }
+    loadAllDbData();
+  }, []);
+
+  // 3. Save states locally on trigger
   useEffect(() => {
     saveLocalData('business_profile', business);
   }, [business]);
@@ -150,10 +311,12 @@ export default function App() {
   // 4. State Modification Action bridges
   const handleOnboardingComplete = (newBiz: HotspotBusiness, initialPlan: HotspotPlan) => {
     setBusiness(newBiz);
+    updateBusinessApi(newBiz);
     
     // Add plan if non-existent
     if (!plans.some((p) => p.name === initialPlan.name)) {
       setPlans([initialPlan, ...plans]);
+      savePlanApi(initialPlan);
     }
     setShowWizard(false);
     
@@ -205,19 +368,42 @@ export default function App() {
     };
 
     setPaymentRequests([freshReq, ...paymentRequests]);
+    submitPaymentRequestApi(freshReq);
   };
 
   // Approve payment from Owner Queue
-  const handleApprovePayment = (id: string) => {
+  const handleApprovePayment = async (id: string, spawnedVoucherCode?: string, spawnedVoucherId?: string) => {
     setPaymentRequests((prev) => 
       prev.map((r) => r.id === id ? { ...r, status: 'Approved' } : r)
     );
+    try {
+      await fetch('/api/payments/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          id, 
+          spawnedVoucherCode: spawnedVoucherCode || `PASS-${Math.floor(1000 + Math.random() * 9000)}`, 
+          spawnedVoucherId: spawnedVoucherId || `v_auto_${Date.now()}` 
+        })
+      });
+    } catch (e) {
+      console.warn('API approval payload error:', e);
+    }
   };
 
-  const handleRejectPayment = (id: string) => {
+  const handleRejectPayment = async (id: string) => {
     setPaymentRequests((prev) => 
       prev.map((r) => r.id === id ? { ...r, status: 'Rejected' } : r)
     );
+    try {
+      await fetch('/api/payments/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+    } catch (e) {
+      console.warn('API rejection failed:', e);
+    }
   };
 
   // Register Printable View trigger
@@ -238,9 +424,21 @@ export default function App() {
               W
             </span>
             <div>
-              <span className="text-[12px] font-black tracking-tight text-white uppercase block">
-                WiFiSplit™ Sandbox
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[12px] font-black tracking-tight text-white uppercase block">
+                  WiFiSplit™ Sandbox
+                </span>
+                {dbStatusInfo.neonActive ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8.5px] font-black bg-emerald-500/15 text-emerald-400 border border-emerald-500/35">
+                    <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Neon Live (Pooler)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8.5px] font-mono font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30 uppercase">
+                    Sandbox Offline cache
+                  </span>
+                )}
+              </div>
               <p className="text-[9.5px] text-slate-400 font-medium">Interactive Multi-Tenant Simulation environment</p>
             </div>
           </div>
@@ -356,28 +554,28 @@ export default function App() {
               {currentRole === 'owner' && (
                 <OwnerDashboard
                   business={business}
-                  onUpdateBusiness={setBusiness}
+                  onUpdateBusiness={(b) => { setBusiness(b); updateBusinessApi(b); }}
                   plans={plans}
-                  onAddPlan={(newP) => setPlans([newP, ...plans])}
-                  onUpdatePlan={(upP) => setPlans(plans.map((p) => p.id === upP.id ? upP : p))}
-                  onDeletePlan={(delId) => setPlans(plans.filter((p) => p.id !== delId))}
+                  onAddPlan={(newP) => { setPlans([newP, ...plans]); savePlanApi(newP); }}
+                  onUpdatePlan={(upP) => { setPlans(plans.map((p) => p.id === upP.id ? upP : p)); savePlanApi(upP); }}
+                  onDeletePlan={(delId) => { setPlans(plans.filter((p) => p.id !== delId)); deletePlanApi(delId); }}
                   vouchers={vouchers}
-                  onAddVoucher={(newV) => setVouchers([newV, ...vouchers])}
-                  onUpdateVoucher={(upV) => setVouchers(vouchers.map((v) => v.id === upV.id ? upV : v))}
-                  onBulkAddVouchers={(vList) => setVouchers([...vList, ...vouchers])}
+                  onAddVoucher={(newV) => { setVouchers([newV, ...vouchers]); saveVoucherApi(newV); }}
+                  onUpdateVoucher={(upV) => { setVouchers(vouchers.map((v) => v.id === upV.id ? upV : v)); saveVoucherApi(upV); }}
+                  onBulkAddVouchers={(vList) => { setVouchers([...vList, ...vouchers]); vList.forEach(v => saveVoucherApi(v)); }}
                   customers={customers}
-                  onUpdateCustomer={(upC) => setCustomers(customers.map((c) => c.id === upC.id ? upC : c))}
-                  onAddCustomer={(newC) => setCustomers([newC, ...customers])}
+                  onUpdateCustomer={(upC) => { setCustomers(customers.map((c) => c.id === upC.id ? upC : c)); saveCustomerApi(upC); }}
+                  onAddCustomer={(newC) => { setCustomers([newC, ...customers]); saveCustomerApi(newC); }}
                   sessions={sessions}
-                  onDisconnectSession={(delId) => setSessions(sessions.filter((s) => s.id !== delId))}
+                  onDisconnectSession={(delId) => { setSessions(sessions.filter((s) => s.id !== delId)); disconnectSessionApi(delId); }}
                   paymentRequests={paymentRequests}
                   onApprovePayment={handleApprovePayment}
                   onRejectPayment={handleRejectPayment}
                   messageLogs={messageLogs}
-                  onAddMessageLog={(newLog) => setMessageLogs([newLog, ...messageLogs])}
+                  onAddMessageLog={(newLog) => { setMessageLogs([newLog, ...messageLogs]); saveMsgLogApi(newLog); }}
                   saasPlans={SaaSPlans}
                   currentSaaSTier={currentSaaSTier}
-                  onUpgradeSaaSTier={setCurrentSaaSTier}
+                  onUpgradeSaaSTier={(tier) => { setCurrentSaaSTier(tier); upgradeSaaSTierApi(tier); }}
                   triggerPrintView={handleTriggerPrintSlips}
                   announcement={announcement}
                 />
@@ -403,7 +601,7 @@ export default function App() {
                   tenants={tenants}
                   saasPlans={SaaSPlans}
                   onUpdateTenants={setTenants}
-                  onPostAnnouncement={setAnnouncement}
+                  onPostAnnouncement={(newAnn) => { setAnnouncement(newAnn); postAnnouncementApi(newAnn); }}
                   announcement={announcement}
                 />
               )}

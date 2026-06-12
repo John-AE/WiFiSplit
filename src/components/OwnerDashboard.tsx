@@ -28,7 +28,7 @@ interface OwnerDashboardProps {
   sessions: ActiveSession[];
   onDisconnectSession: (id: string) => void;
   paymentRequests: PaymentRequest[];
-  onApprovePayment: (id: string) => void;
+  onApprovePayment: (id: string, code?: string, vchId?: string) => void;
   onRejectPayment: (id: string) => void;
   messageLogs: WhatsAppMessageLog[];
   onAddMessageLog: (log: WhatsAppMessageLog) => void;
@@ -318,14 +318,17 @@ export default function OwnerDashboard({
   };
 
   const handleApprovePayloadPayment = async (req: PaymentRequest) => {
-    // 1. Trigger parent approve payments
-    onApprovePayment(req.id);
-
-    // 2. Automatically generate high quality secure voucher
+    // 1. Generate high quality secure voucher first
     const associatedPlan = plans.find((p) => p.id === req.planId) || plans[0];
+    const generatedVchId = `v_auto_aprv_${Date.now()}`;
+    const generatedCode = generateRandomCode();
+    
+    // 2. Trigger parent approve payments with same code & id
+    onApprovePayment(req.id, generatedCode, generatedVchId);
+
     const generatedVch: Voucher = {
-      id: `v_auto_aprv_${Date.now()}`,
-      code: generateRandomCode(),
+      id: generatedVchId,
+      code: generatedCode,
       planId: associatedPlan.id,
       planName: associatedPlan?.name || '₦500 Plan',
       planPrice: associatedPlan?.price || 500,
