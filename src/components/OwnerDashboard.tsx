@@ -37,6 +37,7 @@ interface OwnerDashboardProps {
   onUpgradeSaaSTier: (tierId: 'starter' | 'growth' | 'business') => void;
   triggerPrintView: (selected: Voucher[]) => void;
   announcement: string;
+  onLogout?: () => void;
 }
 
 export default function OwnerDashboard({
@@ -64,7 +65,8 @@ export default function OwnerDashboard({
   currentSaaSTier,
   onUpgradeSaaSTier,
   triggerPrintView,
-  announcement
+  announcement,
+  onLogout
 }: OwnerDashboardProps) {
 
   const [activeTab, setActiveTab] = useState<'overview' | 'vouchers' | 'payments' | 'plans' | 'customers' | 'network' | 'whatsapp' | 'billing' | 'reports'>('overview');
@@ -95,6 +97,7 @@ export default function OwnerDashboard({
   const [singleVPlanId, setSingleVPlanId] = useState(plans[0]?.id || '');
   const [singleVCustomerName, setSingleVCustomerName] = useState('');
   const [singleVCustomerPhone, setSingleVCustomerPhone] = useState('');
+  const [singleVCustomerEmail, setSingleVCustomerEmail] = useState('');
 
   // Single Customer creator states
   const [showAddCustModal, setShowAddCustModal] = useState(false);
@@ -211,6 +214,7 @@ export default function OwnerDashboard({
       speedLimitMbps: selPlan.speedLimitMbps,
       customerName: singleVCustomerName || undefined,
       customerPhone: singleVCustomerPhone || undefined,
+      customerEmail: singleVCustomerEmail || undefined,
       isMultiDevice: selPlan.deviceLimit > 1,
       deviceLimit: selPlan.deviceLimit
     };
@@ -218,11 +222,11 @@ export default function OwnerDashboard({
     onAddVoucher(newV);
     setShowSingleVchModal(false);
 
-    // If client details provided, emulate SMS/WhatsApp dispatch instantly
+    const formattedRecipientName = singleVCustomerName || 'Valued Customer';
+    const logContent = `Hello ${formattedRecipientName}\n\nYour Wi-Fi voucher is ready.\n\nPlan: ${selPlan.name}\nVoucher Code: ${newV.code}\nData: ${selPlan.dataLimitGb > 0 ? selPlan.dataLimitGb + ' GB' : 'Unlimited FUP'}\n\nThank you for choosing Starlink Elite Wi-Fi!`;
+
+    // If phone provided, emulate SMS/WhatsApp dispatch instantly and trigger browser client
     if (singleVCustomerPhone) {
-      const formattedRecipientName = singleVCustomerName || 'Valued Customer';
-      const logContent = `Hello ${formattedRecipientName}\n\nYour Wi-Fi voucher is ready.\n\nPlan: ${selPlan.name}\nVoucher Code: ${newV.code}\nData: ${selPlan.dataLimitGb > 0 ? selPlan.dataLimitGb + ' GB' : 'Unlimited FUP'}\n\nThank you for choosing Starlink Elite Wi-Fi!`;
-      
       onAddMessageLog({
         id: `msg_single_${Date.now()}`,
         recipientName: formattedRecipientName,
@@ -234,9 +238,40 @@ export default function OwnerDashboard({
         planName: selPlan.name,
         voucherCode: newV.code
       });
+
+      // Actually launch/trigger local WhatsApp Web window for seamless UX!
+      try {
+        const cleanPhone = singleVCustomerPhone.replace(/[^\d+]/g, '');
+        const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(logContent)}`;
+        window.open(waUrl, '_blank');
+      } catch (err) {
+        console.warn('Popup blocked, WhatsApp prefilled message didn\'t open automatically', err);
+      }
+    }
+
+    // If email provided, log dispatch to outgoing log
+    if (singleVCustomerEmail) {
+      const emailContent = `Hello ${formattedRecipientName},\n\nYour Wi-Fi access voucher code is: ${newV.code}\n\nPlan Detail: ${selPlan.name}\nDuration: ${selPlan.durationHours} Hours\nFUP Limit: ${selPlan.dataLimitGb > 0 ? selPlan.dataLimitGb + ' GB' : 'Unlimited'}\n\nKindly enter this code in your browser's landing page to resume connection.\n\nThank you.`;
+      
+      onAddMessageLog({
+        id: `msg_email_${Date.now()}`,
+        recipientName: formattedRecipientName,
+        recipientPhone: singleVCustomerEmail,
+        messageType: 'voucher',
+        content: emailContent,
+        status: 'Delivered',
+        timestamp: new Date().toISOString(),
+        planName: selPlan.name,
+        voucherCode: newV.code
+      });
     }
 
     triggerAlert(`Voucher ${newV.code} generated successfully!`);
+    
+    // Clear inputs for next launch
+    setSingleVCustomerName('');
+    setSingleVCustomerPhone('');
+    setSingleVCustomerEmail('');
   };
 
   const handleCreatePlan = (e: React.FormEvent) => {
@@ -457,7 +492,22 @@ export default function OwnerDashboard({
   };
 
   const handleCopy = (code: string) => {
-    navigator.clipboard.writeText(code);
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(code);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = code;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-99999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+    } catch (err) {
+      console.warn('Fallback copy failed', err);
+    }
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
   };
@@ -522,6 +572,15 @@ export default function OwnerDashboard({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="px-3.5 py-2 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-rose-600 hover:text-rose-700 font-extrabold rounded-xl text-xs flex items-center gap-1.5 smooth-transition"
+            >
+              🚪 Sign Out
+            </button>
+          )}
+
           <button 
             onClick={() => { setActiveTab('payments'); }} 
             className="relative px-3.5 py-2 hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 smooth-transition"
@@ -1909,7 +1968,19 @@ export default function OwnerDashboard({
                   onChange={(e) => setSingleVCustomerPhone(e.target.value)}
                   className="w-full border border-slate-200 p-2.5 rounded-lg font-mono text-slate-700"
                 />
-                <span className="text-[9.5px] text-slate-400 mt-1 block">If details mapped, the webhook pushes alert instantly!</span>
+                <span className="text-[9.5px] text-slate-400 mt-1 block">If details mapped, the system triggers the dispatch alert securely!</span>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Email address for alert dispatch (Optional)</label>
+                <input
+                  type="email"
+                  placeholder="e.g. customer@domain.com"
+                  value={singleVCustomerEmail}
+                  onChange={(e) => setSingleVCustomerEmail(e.target.value)}
+                  className="w-full border border-slate-200 p-2.5 rounded-lg font-mono text-slate-700"
+                />
+                <span className="text-[9.5px] text-slate-400 mt-1 block">Sends the voucher passcode PIN to subscriber email instantly!</span>
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex gap-2 justify-end">
@@ -2022,9 +2093,19 @@ export default function OwnerDashboard({
                   </div>
                   <button
                     onClick={() => handleCopy(dispatchFeedback.voucherCode)}
-                    className="px-2.5 py-1 bg-white hover:bg-brand-50 border border-slate-200 hover:border-brand-300 rounded text-[10px] font-bold text-slate-600 flex items-center gap-1.5 transition-colors"
+                    className={`px-3 py-1.5 border rounded text-[10px] font-bold flex items-center gap-1.5 transition-colors ${
+                      copiedCode === dispatchFeedback.voucherCode
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                        : 'bg-white hover:bg-brand-50 border-slate-200 hover:border-brand-300 text-slate-600'
+                    }`}
                   >
-                    <Copy className="w-3 h-3" /> Copy
+                    {copiedCode === dispatchFeedback.voucherCode ? (
+                      <>✓ Copied</>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" /> Copy
+                      </>
+                    )}
                   </button>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-500 border-t border-brand-100/30 pt-2.5">

@@ -47,6 +47,7 @@ export interface Voucher {
 export interface Customer {
   id: string;
   name: string;
+  email?: string;
   phone: string;
   whatsapp: string;
   activePlanId?: string;

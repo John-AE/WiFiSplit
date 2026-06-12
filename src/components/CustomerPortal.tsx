@@ -14,6 +14,7 @@ interface CustomerPortalProps {
   paymentRequests: PaymentRequest[];
   onSubmitPaymentRequest: (req: Omit<PaymentRequest, 'id' | 'status' | 'timestamp' | 'whatsappDelivered'>) => void;
   onClearHistory?: () => void;
+  onLogout?: () => void;
 }
 
 export default function CustomerPortal({
@@ -22,7 +23,8 @@ export default function CustomerPortal({
   business,
   paymentRequests,
   onSubmitPaymentRequest,
-  onClearHistory
+  onClearHistory,
+  onLogout
 }: CustomerPortalProps) {
   // Toggle select plan
   const [selectedPlanId, setSelectedPlanId] = useState<string>(plans[0]?.id || '');
@@ -63,7 +65,22 @@ export default function CustomerPortal({
   }, []);
 
   const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(code);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = code;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-99999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+    } catch (err) {
+      console.warn('Fallback copy failed', err);
+    }
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2500);
   };
@@ -114,7 +131,17 @@ export default function CustomerPortal({
               ⚡
             </div>
             <div>
-              <p className="text-xs text-brand-200 font-extrabold uppercase tracking-widest">Subscriber Connection App</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-brand-200 font-extrabold uppercase tracking-widest">Subscriber Connection App</p>
+                {onLogout && (
+                  <button
+                    onClick={onLogout}
+                    className="text-[10px] bg-emerald-950 hover:bg-rose-950 hover:text-rose-300 text-emerald-300 px-2.5 py-0.5 rounded-full font-bold border border-emerald-800 hover:border-rose-900 transition-colors"
+                  >
+                    🚪 Sign Out
+                  </button>
+                )}
+              </div>
               <h3 className="text-xl font-extrabold tracking-tight">
                 {isConnected ? 'Connected to Hotspot' : 'Offline / Interrupted'}
               </h3>
@@ -449,9 +476,13 @@ export default function CustomerPortal({
                   <button
                     type="button"
                     onClick={() => handleCopyCode(business.bankAccountNo)}
-                    className="text-[9px] text-brand-600 hover:underline font-bold"
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded transition ${
+                      copiedCode === business.bankAccountNo
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'text-brand-600 hover:bg-slate-100'
+                    }`}
                   >
-                    Copy
+                    {copiedCode === business.bankAccountNo ? 'Copied ✓' : 'Copy'}
                   </button>
                 </div>
                 <p className="text-[10.5px]">Name: <strong>{business.bankAccountName}</strong></p>

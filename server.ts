@@ -117,6 +117,24 @@ let fallbackPlans = [
 
 let fallbackVouchers: any[] = [
   {
+    id: 'v_john_b',
+    code: 'HN77-JB20-PASS',
+    planId: 'plan_1d_1gb',
+    planName: '₦100 Super Saver',
+    planPrice: 100,
+    status: 'active',
+    dateCreated: new Date().toISOString(),
+    durationHours: 24,
+    dataLimitGb: 1,
+    remainingDataGb: 1,
+    speedLimitMbps: 5,
+    customerName: 'John B',
+    customerPhone: '+234 812 700 9000',
+    customerEmail: 'johnamaka2@gmail.com',
+    isMultiDevice: false,
+    deviceLimit: 1
+  },
+  {
     id: 'v_1',
     code: 'STAR-7392-OP',
     planId: 'plan_1d_1gb',
@@ -152,6 +170,22 @@ let fallbackPayments: any[] = [
 ];
 
 let fallbackCustomers = [
+  {
+    id: 'cust_john_b',
+    name: 'John B',
+    phone: '+234 812 700 9000',
+    whatsapp: '+234 812 700 9000',
+    email: 'johnamaka2@gmail.com',
+    activePlanId: 'plan_1d_1gb',
+    activePlanName: '₦100 Super Saver',
+    expiryTime: new Date(Date.now() + 24*3600*1000).toISOString(),
+    totalSpend: 5000,
+    historyVouchersCount: 2,
+    isSuspended: false,
+    isBlacklisted: false,
+    notes: 'Premium customer testing the portal.',
+    joinedDate: new Date().toISOString()
+  },
   {
     id: 'cust_1',
     name: 'Chidi Anselm',

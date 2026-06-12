@@ -320,6 +320,22 @@ export const DefaultPlans: HotspotPlan[] = [
 
 export const DefaultCustomers: Customer[] = [
   {
+    id: 'c_john_b',
+    name: 'John B',
+    email: 'johnamaka2@gmail.com',
+    phone: '+234 812 700 9000',
+    whatsapp: '+234 812 700 9000',
+    activePlanId: 'plan_7d_11gb',
+    activePlanName: '₦2,500 Weekly Premium',
+    expiryTime: '2026-06-19T13:00:00Z',
+    totalSpend: 5000,
+    historyVouchersCount: 2,
+    isSuspended: false,
+    isBlacklisted: false,
+    notes: 'Premium customer testing the portal.',
+    joinedDate: '2026-06-10'
+  },
+  {
     id: 'c_1',
     name: 'Chinedu Okafor',
     phone: '+234 803 111 2222',
@@ -397,6 +413,27 @@ export const DefaultCustomers: Customer[] = [
 ];
 
 export const DefaultVouchers: Voucher[] = [
+  {
+    id: 'v_john_b',
+    code: 'HN77-JB20-PASS',
+    planId: 'plan_7d_11gb',
+    planName: '₦2,500 Weekly Premium',
+    planPrice: 2500,
+    status: 'active',
+    dateCreated: '2026-06-12T13:00:00Z',
+    dateUsed: '2026-06-12T13:05:00Z',
+    dateExpired: '2026-06-19T13:00:00Z',
+    durationHours: 168,
+    dataLimitGb: 11,
+    remainingDataGb: 10.2,
+    speedLimitMbps: 12,
+    customerName: 'John B',
+    customerPhone: '+234 812 700 9000',
+    customerEmail: 'johnamaka2@gmail.com',
+    paymentReference: 'REF-BANK-JB-99201',
+    isMultiDevice: true,
+    deviceLimit: 2
+  },
   {
     id: 'v_1',
     code: 'PL8Q-CD44-AB12',

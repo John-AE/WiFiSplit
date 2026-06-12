@@ -173,7 +173,6 @@ CREATE TABLE IF NOT EXISTS active_vouchers (
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#workflow" className="hover:text-white transition-colors">How it Works</a>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing Profiles</a>
-            <a href="#sql-integration" className="hover:text-white transition-colors">Enterprise DB Schema</a>
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -397,91 +396,6 @@ CREATE TABLE IF NOT EXISTS active_vouchers (
               <p className="text-xs text-slate-400 leading-relaxed font-semibold">{feat.desc}</p>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* Relational Database DDL Schema Section (What backend do you recommend?) */}
-      <section id="sql-integration" className="py-20 bg-slate-950 px-6 border-t border-slate-800/60">
-        <div className="max-w-7xl mx-auto space-y-12">
-          
-          <div className="text-center space-y-3">
-            <span className="text-xs font-black text-indigo-400 uppercase tracking-widest block">REAL WORKSPACE SCALING</span>
-            <h2 className="text-2xl md:text-4xl font-extrabold text-white tracking-tight">Production Database Integration</h2>
-            <p className="text-xs text-slate-400 max-w-2xl mx-auto">
-              Ready to replace simulated mock data with cloud storage? We strongly recommend deploying a <strong>PostgreSQL instance (on Supabase/Neon)</strong> or <strong>Firebase Firestore (configured with one click inside AI Studio)</strong>.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
-            {/* Left Recommendations Side */}
-            <div className="lg:col-span-4 space-y-6 text-left">
-              <div className="p-5 bg-slate-900/40 border border-slate-800 rounded-2xl space-y-3">
-                <h3 className="text-xs font-black uppercase text-brand-400 flex items-center gap-2">
-                  <Database className="w-4 h-4" /> Firebase (NoSQL Recommendation)
-                </h3>
-                <p className="text-xs text-slate-400 leading-relaxed font-semibold">
-                  The easiest way to move to cloud production inside Google AI Studio. Fire the `set_up_firebase` workspace integration tool. It immediately pins stable state records with zero server setup overhead.
-                </p>
-                <div className="text-[11px] text-slate-500 font-mono bg-slate-950 p-2.5 rounded border border-slate-900">
-                  ⚡ Firebase Firestore database with instant deployment rules is supportable!
-                </div>
-              </div>
-
-              <div className="p-5 bg-slate-900/40 border border-slate-800 rounded-2xl space-y-3">
-                <h3 className="text-xs font-black uppercase text-purple-400 flex items-center gap-2">
-                  <Code className="w-4 h-4" /> Relational SQL Setup (Supabase / Neon)
-                </h3>
-                <p className="text-xs text-slate-400 leading-relaxed font-semibold">
-                  Copy our custom optimized DDL SQL script shown on the right, create a PostgreSQL database on Supabase or Neon, and paste this script directly into their SQL editor to build all necessary application tables.
-                </p>
-              </div>
-
-              {/* Secure Login suggestion summary */}
-              <div className="p-5 bg-slate-900/40 border border-slate-800 rounded-2xl space-y-3">
-                <h3 className="text-xs font-black uppercase text-sky-400 flex items-center gap-2">
-                  <Lock className="w-4 h-4" /> Production Auth Workflow
-                </h3>
-                <p className="text-xs text-slate-400 leading-relaxed font-semibold">
-                  In a real production environment, we deploy individual sign-in pages (via Google Sign-In or Magic Passwordless Links) so subscribers only access their vouchers, and resellers access their ledger dashboard safely without role switchers.
-                </p>
-              </div>
-            </div>
-
-            {/* Right Interactive SQL Editor Display side */}
-            <div className="lg:col-span-8 space-y-4">
-              <div className="flex items-center justify-between bg-slate-900 border border-slate-850 px-4 py-3 rounded-t-2xl">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-red-500" />
-                  <span className="w-3 h-3 rounded-full bg-yellow-500" />
-                  <span className="w-3 h-3 rounded-full bg-green-500" />
-                  <span className="text-[10px] font-mono text-slate-400 ml-2 font-bold uppercase">WiFiSplit_Schema.sql</span>
-                </div>
-                <button
-                  onClick={handleCopySQL}
-                  className="px-3 py-1 bg-slate-950 hover:bg-slate-800 rounded-lg text-[10px] font-bold text-slate-300 border border-slate-800 flex items-center gap-1.5 transition-colors"
-                >
-                  {copiedSQL ? (
-                    <>
-                      <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Copied To Clipboard!
-                    </>
-                  ) : (
-                    <>
-                      <Code className="w-3 h-3" /> Copy SQL Code
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="bg-slate-950 border border-slate-850 border-t-0 p-4 rounded-b-2xl max-h-[440px] overflow-y-auto scrollbar-thin text-left">
-                <pre className="text-slate-350 font-mono text-[10.5px] leading-relaxed overflow-x-auto whitespace-pre">
-                  {recommendedSQL}
-                </pre>
-              </div>
-            </div>
-
-          </div>
-
         </div>
       </section>
 

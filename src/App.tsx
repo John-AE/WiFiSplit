@@ -19,6 +19,8 @@ import SaaSSuperAdmin from './components/SaaSSuperAdmin';
 import CustomerPortal from './components/CustomerPortal';
 import OwnerDashboard from './components/OwnerDashboard';
 import LandingPage from './components/LandingPage';
+import ResellerAuthLogin from './components/ResellerAuthLogin';
+import SubscriberAuthLogin from './components/SubscriberAuthLogin';
 
 import { 
   Wifi, HelpCircle, Activity, LayoutGrid, Info, ArrowUpRight, 
@@ -92,6 +94,21 @@ export default function App() {
 
   // 2. Active Session Testing Role
   const [currentRole, setCurrentRole] = useState<'landing' | 'owner' | 'customer' | 'super'>('landing');
+
+  const [isResellerAuthed, setIsResellerAuthed] = useState<boolean>(() => {
+    return loadLocalData<boolean>('is_reseller_authed', false);
+  });
+  const [isSubscriberAuthed, setIsSubscriberAuthed] = useState<boolean>(() => {
+    return loadLocalData<boolean>('is_subscriber_authed', false);
+  });
+
+  useEffect(() => {
+    saveLocalData('is_reseller_authed', isResellerAuthed);
+  }, [isResellerAuthed]);
+
+  useEffect(() => {
+    saveLocalData('is_subscriber_authed', isSubscriberAuthed);
+  }, [isSubscriberAuthed]);
 
   // Multi-state helper UI elements
   const [showWizard, setShowWizard] = useState(false);
@@ -552,48 +569,64 @@ export default function App() {
             <>
               {/* View layout container */}
               {currentRole === 'owner' && (
-                <OwnerDashboard
-                  business={business}
-                  onUpdateBusiness={(b) => { setBusiness(b); updateBusinessApi(b); }}
-                  plans={plans}
-                  onAddPlan={(newP) => { setPlans([newP, ...plans]); savePlanApi(newP); }}
-                  onUpdatePlan={(upP) => { setPlans(plans.map((p) => p.id === upP.id ? upP : p)); savePlanApi(upP); }}
-                  onDeletePlan={(delId) => { setPlans(plans.filter((p) => p.id !== delId)); deletePlanApi(delId); }}
-                  vouchers={vouchers}
-                  onAddVoucher={(newV) => { setVouchers([newV, ...vouchers]); saveVoucherApi(newV); }}
-                  onUpdateVoucher={(upV) => { setVouchers(vouchers.map((v) => v.id === upV.id ? upV : v)); saveVoucherApi(upV); }}
-                  onBulkAddVouchers={(vList) => { setVouchers([...vList, ...vouchers]); vList.forEach(v => saveVoucherApi(v)); }}
-                  customers={customers}
-                  onUpdateCustomer={(upC) => { setCustomers(customers.map((c) => c.id === upC.id ? upC : c)); saveCustomerApi(upC); }}
-                  onAddCustomer={(newC) => { setCustomers([newC, ...customers]); saveCustomerApi(newC); }}
-                  sessions={sessions}
-                  onDisconnectSession={(delId) => { setSessions(sessions.filter((s) => s.id !== delId)); disconnectSessionApi(delId); }}
-                  paymentRequests={paymentRequests}
-                  onApprovePayment={handleApprovePayment}
-                  onRejectPayment={handleRejectPayment}
-                  messageLogs={messageLogs}
-                  onAddMessageLog={(newLog) => { setMessageLogs([newLog, ...messageLogs]); saveMsgLogApi(newLog); }}
-                  saasPlans={SaaSPlans}
-                  currentSaaSTier={currentSaaSTier}
-                  onUpgradeSaaSTier={(tier) => { setCurrentSaaSTier(tier); upgradeSaaSTierApi(tier); }}
-                  triggerPrintView={handleTriggerPrintSlips}
-                  announcement={announcement}
-                />
+                !isResellerAuthed ? (
+                  <ResellerAuthLogin 
+                    onSuccess={() => setIsResellerAuthed(true)} 
+                    onCancel={() => setCurrentRole('landing')} 
+                  />
+                ) : (
+                  <OwnerDashboard
+                    business={business}
+                    onUpdateBusiness={(b) => { setBusiness(b); updateBusinessApi(b); }}
+                    plans={plans}
+                    onAddPlan={(newP) => { setPlans([newP, ...plans]); savePlanApi(newP); }}
+                    onUpdatePlan={(upP) => { setPlans(plans.map((p) => p.id === upP.id ? upP : p)); savePlanApi(upP); }}
+                    onDeletePlan={(delId) => { setPlans(plans.filter((p) => p.id !== delId)); deletePlanApi(delId); }}
+                    vouchers={vouchers}
+                    onAddVoucher={(newV) => { setVouchers([newV, ...vouchers]); saveVoucherApi(newV); }}
+                    onUpdateVoucher={(upV) => { setVouchers(vouchers.map((v) => v.id === upV.id ? upV : v)); saveVoucherApi(upV); }}
+                    onBulkAddVouchers={(vList) => { setVouchers([...vList, ...vouchers]); vList.forEach(v => saveVoucherApi(v)); }}
+                    customers={customers}
+                    onUpdateCustomer={(upC) => { setCustomers(customers.map((c) => c.id === upC.id ? upC : c)); saveCustomerApi(upC); }}
+                    onAddCustomer={(newC) => { setCustomers([newC, ...customers]); saveCustomerApi(newC); }}
+                    sessions={sessions}
+                    onDisconnectSession={(delId) => { setSessions(sessions.filter((s) => s.id !== delId)); disconnectSessionApi(delId); }}
+                    paymentRequests={paymentRequests}
+                    onApprovePayment={handleApprovePayment}
+                    onRejectPayment={handleRejectPayment}
+                    messageLogs={messageLogs}
+                    onAddMessageLog={(newLog) => { setMessageLogs([newLog, ...messageLogs]); saveMsgLogApi(newLog); }}
+                    saasPlans={SaaSPlans}
+                    currentSaaSTier={currentSaaSTier}
+                    onUpgradeSaaSTier={(tier) => { setCurrentSaaSTier(tier); upgradeSaaSTierApi(tier); }}
+                    triggerPrintView={handleTriggerPrintSlips}
+                    announcement={announcement}
+                    onLogout={() => { setIsResellerAuthed(false); }}
+                  />
+                )
               )}
 
               {currentRole === 'customer' && (
-                <CustomerPortal
-                  vouchers={vouchers}
-                  plans={plans}
-                  business={business}
-                  paymentRequests={paymentRequests}
-                  onSubmitPaymentRequest={handleSubmitPaymentRequest}
-                  onClearHistory={() => {
-                    if (confirm("Reset local consumer sandbox vouchers history?")) {
-                      setVouchers(DefaultVouchers);
-                    }
-                  }}
-                />
+                !isSubscriberAuthed ? (
+                  <SubscriberAuthLogin 
+                    onSuccess={() => setIsSubscriberAuthed(true)} 
+                    onCancel={() => setCurrentRole('landing')} 
+                  />
+                ) : (
+                  <CustomerPortal
+                    vouchers={vouchers}
+                    plans={plans}
+                    business={business}
+                    paymentRequests={paymentRequests}
+                    onSubmitPaymentRequest={handleSubmitPaymentRequest}
+                    onClearHistory={() => {
+                      if (confirm("Reset local consumer sandbox vouchers history?")) {
+                        setVouchers(DefaultVouchers);
+                      }
+                    }}
+                    onLogout={() => { setIsSubscriberAuthed(false); }}
+                  />
+                )
               )}
 
               {currentRole === 'super' && (
