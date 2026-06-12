@@ -18,6 +18,7 @@ import PrintSlips from './components/PrintSlips';
 import SaaSSuperAdmin from './components/SaaSSuperAdmin';
 import CustomerPortal from './components/CustomerPortal';
 import OwnerDashboard from './components/OwnerDashboard';
+import LandingPage from './components/LandingPage';
 
 import { 
   Wifi, HelpCircle, Activity, LayoutGrid, Info, ArrowUpRight, 
@@ -90,8 +91,8 @@ export default function App() {
   );
 
   // 2. Active Session Testing Role
-  // Support three roles: 'owner' | 'customer' | 'super'
-  const [currentRole, setCurrentRole] = useState<'owner' | 'customer' | 'super'>('owner');
+  // Support four roles: 'landing' | 'owner' | 'customer' | 'super'
+  const [currentRole, setCurrentRole] = useState<'landing' | 'owner' | 'customer' | 'super'>('landing');
 
   // Multi-state helper UI elements
   const [showWizard, setShowWizard] = useState(false);
@@ -247,8 +248,20 @@ export default function App() {
           {/* Interactive Role Switcher */}
           <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
             <span className="hidden lg:inline-block text-[9px] uppercase tracking-wider text-slate-500 font-black px-2 select-none">
-              Role Switcher:
+              Navigation Roles:
             </span>
+
+            <button
+              id="role-switch-landing"
+              onClick={() => { setCurrentRole('landing'); setDeviceMockupView(false); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                currentRole === 'landing' 
+                  ? 'bg-brand-500 text-slate-950 font-black shadow-sm' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              🚀 Landing Page
+            </button>
             
             <button
               id="role-switch-owner"
@@ -307,85 +320,98 @@ export default function App() {
       </div>
 
       {/* Main Core Body Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-8">
-        
-        {/* Onboarding Setup Wizard display override */}
-        {showWizard ? (
-          <div className="relative animate-fade-in">
-            <div className="flex justify-end pr-2 -mb-6 relative z-10">
-              <button
-                onClick={() => setShowWizard(false)}
-                className="px-3 py-1 bg-slate-900 text-white rounded-full text-[10.5px] font-bold hover:bg-slate-950"
-              >
-                Close Setup wizard
-              </button>
+      {currentRole === 'landing' && !showWizard ? (
+        <LandingPage
+          onEnterReseller={() => { setCurrentRole('owner'); setDeviceMockupView(false); }}
+          onEnterSubscriber={() => setCurrentRole('customer')}
+          onEnterSuperAdmin={() => setCurrentRole('super')}
+          activePlanLimits={{
+            starter: '30 Users',
+            growth: '100 Users',
+            business: '200 Users'
+          }}
+        />
+      ) : (
+        <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-8">
+          
+          {/* Onboarding Setup Wizard display override */}
+          {showWizard ? (
+            <div className="relative animate-fade-in">
+              <div className="flex justify-end pr-2 -mb-6 relative z-10">
+                <button
+                  onClick={() => setShowWizard(false)}
+                  className="px-3 py-1 bg-slate-900 text-white rounded-full text-[10.5px] font-bold hover:bg-slate-950"
+                >
+                  Close Setup wizard
+                </button>
+              </div>
+              <SetupWizard
+                onComplete={handleOnboardingComplete}
+                onCancel={() => setShowWizard(false)}
+              />
             </div>
-            <SetupWizard
-              onComplete={handleOnboardingComplete}
-              onCancel={() => setShowWizard(false)}
-            />
-          </div>
-        ) : (
-          <>
-            {/* View layout container */}
-            {currentRole === 'owner' && (
-              <OwnerDashboard
-                business={business}
-                onUpdateBusiness={setBusiness}
-                plans={plans}
-                onAddPlan={(newP) => setPlans([newP, ...plans])}
-                onUpdatePlan={(upP) => setPlans(plans.map((p) => p.id === upP.id ? upP : p))}
-                onDeletePlan={(delId) => setPlans(plans.filter((p) => p.id !== delId))}
-                vouchers={vouchers}
-                onAddVoucher={(newV) => setVouchers([newV, ...vouchers])}
-                onUpdateVoucher={(upV) => setVouchers(vouchers.map((v) => v.id === upV.id ? upV : v))}
-                onBulkAddVouchers={(vList) => setVouchers([...vList, ...vouchers])}
-                customers={customers}
-                onUpdateCustomer={(upC) => setCustomers(customers.map((c) => c.id === upC.id ? upC : c))}
-                onAddCustomer={(newC) => setCustomers([newC, ...customers])}
-                sessions={sessions}
-                onDisconnectSession={(delId) => setSessions(sessions.filter((s) => s.id !== delId))}
-                paymentRequests={paymentRequests}
-                onApprovePayment={handleApprovePayment}
-                onRejectPayment={handleRejectPayment}
-                messageLogs={messageLogs}
-                onAddMessageLog={(newLog) => setMessageLogs([newLog, ...messageLogs])}
-                saasPlans={SaaSPlans}
-                currentSaaSTier={currentSaaSTier}
-                onUpgradeSaaSTier={setCurrentSaaSTier}
-                triggerPrintView={handleTriggerPrintSlips}
-                announcement={announcement}
-              />
-            )}
+          ) : (
+            <>
+              {/* View layout container */}
+              {currentRole === 'owner' && (
+                <OwnerDashboard
+                  business={business}
+                  onUpdateBusiness={setBusiness}
+                  plans={plans}
+                  onAddPlan={(newP) => setPlans([newP, ...plans])}
+                  onUpdatePlan={(upP) => setPlans(plans.map((p) => p.id === upP.id ? upP : p))}
+                  onDeletePlan={(delId) => setPlans(plans.filter((p) => p.id !== delId))}
+                  vouchers={vouchers}
+                  onAddVoucher={(newV) => setVouchers([newV, ...vouchers])}
+                  onUpdateVoucher={(upV) => setVouchers(vouchers.map((v) => v.id === upV.id ? upV : v))}
+                  onBulkAddVouchers={(vList) => setVouchers([...vList, ...vouchers])}
+                  customers={customers}
+                  onUpdateCustomer={(upC) => setCustomers(customers.map((c) => c.id === upC.id ? upC : c))}
+                  onAddCustomer={(newC) => setCustomers([newC, ...customers])}
+                  sessions={sessions}
+                  onDisconnectSession={(delId) => setSessions(sessions.filter((s) => s.id !== delId))}
+                  paymentRequests={paymentRequests}
+                  onApprovePayment={handleApprovePayment}
+                  onRejectPayment={handleRejectPayment}
+                  messageLogs={messageLogs}
+                  onAddMessageLog={(newLog) => setMessageLogs([newLog, ...messageLogs])}
+                  saasPlans={SaaSPlans}
+                  currentSaaSTier={currentSaaSTier}
+                  onUpgradeSaaSTier={setCurrentSaaSTier}
+                  triggerPrintView={handleTriggerPrintSlips}
+                  announcement={announcement}
+                />
+              )}
 
-            {currentRole === 'customer' && (
-              <CustomerPortal
-                vouchers={vouchers}
-                plans={plans}
-                business={business}
-                paymentRequests={paymentRequests}
-                onSubmitPaymentRequest={handleSubmitPaymentRequest}
-                onClearHistory={() => {
-                  if (confirm("Reset local consumer sandbox vouchers history?")) {
-                    setVouchers(DefaultVouchers);
-                  }
-                }}
-              />
-            )}
+              {currentRole === 'customer' && (
+                <CustomerPortal
+                  vouchers={vouchers}
+                  plans={plans}
+                  business={business}
+                  paymentRequests={paymentRequests}
+                  onSubmitPaymentRequest={handleSubmitPaymentRequest}
+                  onClearHistory={() => {
+                    if (confirm("Reset local consumer sandbox vouchers history?")) {
+                      setVouchers(DefaultVouchers);
+                    }
+                  }}
+                />
+              )}
 
-            {currentRole === 'super' && (
-              <SaaSSuperAdmin
-                tenants={tenants}
-                saasPlans={SaaSPlans}
-                onUpdateTenants={setTenants}
-                onPostAnnouncement={setAnnouncement}
-                announcement={announcement}
-              />
-            )}
-          </>
-        )}
+              {currentRole === 'super' && (
+                <SaaSSuperAdmin
+                  tenants={tenants}
+                  saasPlans={SaaSPlans}
+                  onUpdateTenants={setTenants}
+                  onPostAnnouncement={setAnnouncement}
+                  announcement={announcement}
+                />
+              )}
+            </>
+          )}
 
-      </main>
+        </main>
+      )}
 
       {/* Global Printable Slips Modal Overlay */}
       {showPrintModal && (
