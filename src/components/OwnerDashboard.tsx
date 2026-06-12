@@ -1395,9 +1395,41 @@ export default function OwnerDashboard({
             
             <button
               onClick={() => {
-                alert('Export triggered! Downloading Starlink_Elite_Sales_June2026.csv to computer files.');
+                const headers = [
+                  "Transaction ID",
+                  "Timestamp",
+                  "Customer Name",
+                  "Contact Number",
+                  "Email Address",
+                  "Plan Name",
+                  "Plan Price (NGN)",
+                  "Payment Reference",
+                  "Verification Status"
+                ];
+
+                const rows = paymentRequests.map(req => [
+                  req.id,
+                  req.timestamp ? req.timestamp : new Date().toISOString(),
+                  `"${(req.customerName || '').replace(/"/g, '""')}"`,
+                  `"${req.customerPhone || ''}"`,
+                  `"${req.customerEmail || ''}"`,
+                  `"${(req.planName || '').replace(/"/g, '""')}"`,
+                  req.planPrice,
+                  `"${(req.reference || '').replace(/"/g, '""')}"`,
+                  req.status
+                ]);
+
+                const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `WiFiSplit_Financial_Ledger_${new Date().toISOString().slice(0, 10)}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
               }}
-              className="px-4 py-2 bg-slate-900 border border-slate-800 text-white hover:bg-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 smooth-transition"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md shadow-emerald-550/10"
             >
               <FileText className="w-4 h-4" /> Export Financial CSV
             </button>

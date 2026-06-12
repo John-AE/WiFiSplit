@@ -306,24 +306,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Sandbox helper explanation notice - can be closed */}
-      <div className="bg-emerald-50 border-b border-brand-100 py-3 px-4">
-        <div className="max-w-7xl mx-auto flex items-start gap-2.5 text-xs text-brand-900 leading-normal">
-          <Info className="w-5 h-5 text-brand-600 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-semibold text-slate-800">
-              💡 <strong className="font-extrabold uppercase text-[10px] bg-brand-200 text-brand-950 px-2 py-0.5 rounded-md">How to test Naira Manual Payment Loop</strong>:
-            </p>
-            <ol className="list-decimal list-inside pl-1 space-y-0.5 text-slate-700 text-[11px] font-medium">
-              <li>Switch to <strong>👤 Subscribers</strong> profile tab. Select the daily ₦500 plan or weekly option. Fill in details and Submit validation request.</li>
-              <li>Switch back to <strong>🏢 Reseller Admin</strong> profile. Tap on <strong>💳 Pending Approvals</strong> dashboard block. You see their uploaded reference under review queue!</li>
-              <li>Click <strong>Approve Payment</strong>. A secure random Wi-Fi voucher PIN is instantly spawned, and a simulated WhatsApp message record is logged automatically!</li>
-              <li>Access the hidden <strong>Platform Super Admin</strong> anytime by tapping <strong>🔐 SYSTEM_SaaS_OPERATOR_ACCESS</strong> in the bottom footer.</li>
-            </ol>
-          </div>
-        </div>
-      </div>
-
       {/* Main Core Body Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-8">
         
