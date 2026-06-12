@@ -39,7 +39,6 @@ export default function CustomerPortal({
   const [userName, setUserName] = useState('');
   const [userPhone, setUserPhone] = useState('');
   const [userRef, setUserRef] = useState('');
-  const [uploadedScrenshotNum, setUploadedScreenshotNum] = useState<any>(null);
   
   // App states
   const [searchCode, setSearchCode] = useState('');
@@ -85,14 +84,12 @@ export default function CustomerPortal({
       planId: selectedPlanId,
       planName: selectedPlan?.name || '₦500 Plan',
       planPrice: selectedPlan?.price || 500,
-      reference: userRef,
-      screenshotUrl: 'https://images.unsplash.com/photo-1616077168079-7e09a677fb2c?q=80&w=400&fit=crop' // simulated screenshot
+      reference: userRef
     });
 
     setSuccessMessage(`Payment reference submitted to ${business.businessName}! Check manual verification queue shortly.`);
     // reset form some values
     setUserRef('');
-    setUploadedScreenshotNum(null);
   };
 
   // Find dynamic statistics for clients currently active vouchers
@@ -373,39 +370,6 @@ export default function CustomerPortal({
               </div>
             )}
           </div>
-
-          {/* Cumulative History Log */}
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-150 mb-3">
-              <h5 className="text-xs font-extrabold text-slate-700 uppercase">My Vouchers History Archive</h5>
-              {onClearHistory && (
-                <button onClick={onClearHistory} className="text-[10px] text-slate-400 hover:text-rose-600 flex items-center gap-1 font-bold">
-                  <Trash2 className="w-3.5 h-3.5" /> Reset Demo Vouchers
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              {vouchers.map((v) => (
-                <div key={v.id} className="flex justify-between items-center bg-slate-50/50 hover:bg-slate-50 px-3 py-2 rounded-lg border border-slate-200/40 text-xs">
-                  <div>
-                    <span className="font-extrabold text-slate-700">{v.planName}</span>
-                    <p className="text-[10px] text-slate-400 font-mono">{v.code}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className={`px-2 py-0.5 rounded text-[9.5px] font-bold uppercase ${
-                      v.status === 'active' ? 'bg-emerald-50 text-emerald-700' :
-                      v.status === 'expired' ? 'bg-slate-100 text-slate-500' :
-                      v.status === 'used' ? 'bg-slate-100 text-slate-600' : 'bg-red-50 text-red-700'
-                    }`}>
-                      {v.status}
-                    </span>
-                    <p className="text-[9px] text-slate-400 mt-0.5">{new Date(v.dateCreated).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Right Column: Buying a new path & manuals screenshot submission */}
@@ -504,15 +468,6 @@ export default function CustomerPortal({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Upload Bank Transfer Screenshot</label>
-                <div className="border border-dashed border-slate-200 bg-slate-50 rounded-lg p-4 text-center cursor-pointer hover:bg-slate-100">
-                  <span className="text-xl">📸</span>
-                  <span className="block text-[11px] text-slate-500 font-medium mt-1">Click to attach confirmation file</span>
-                  <span className="text-[9px] text-slate-400">supports JPG, PNG up to 10MB</span>
-                </div>
-              </div>
-
               <button
                 type="submit"
                 className="w-full mt-4 bg-brand-800 hover:bg-brand-900 text-white font-bold py-3 rounded-xl text-xs uppercase flex items-center justify-center gap-1.5 smooth-transition shadow-lg shadow-brand-900/10"
@@ -569,6 +524,80 @@ export default function CustomerPortal({
 
       </div>
 
+      {/* Cumulative History Log - Spanning entire page width */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 mb-4 font-sans">
+          <div>
+            <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-1.5">
+              📜 My Vouchers History Archive ({vouchers.length})
+            </h4>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              History of all generated, active, used and expired Wi-Fi access tokens.
+            </p>
+          </div>
+          {onClearHistory && (
+            <button
+              onClick={onClearHistory}
+              className="text-[10px] text-slate-400 hover:text-rose-600 flex items-center gap-1 font-bold whitespace-nowrap self-start sm:self-auto bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 smooth-transition"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-500" /> Reset Demo History
+            </button>
+          )}
+        </div>
+
+        <div className="max-h-[400px] overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+          {vouchers.length === 0 ? (
+            <div className="text-center py-12 text-slate-400 text-xs">
+              No historic logs found for your identity yet.
+            </div>
+          ) : (
+            vouchers.map((v) => (
+              <div
+                key={v.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50/40 hover:bg-slate-50 px-4 py-3 rounded-xl border border-slate-200/50 text-xs gap-3 smooth-transition"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-slate-800 text-[12.5px]">{v.planName}</span>
+                    <span className="text-[11px] font-bold text-slate-500">
+                      (₦{v.planPrice.toLocaleString()})
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px] text-slate-400">
+                    <span className="font-mono bg-white border border-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-bold">
+                      PIN: {v.code}
+                    </span>
+                    {v.paymentReference && (
+                      <span className="text-slate-400">
+                        • Ref: <code className="font-bold text-slate-650">{v.paymentReference}</code>
+                      </span>
+                    )}
+                    <span>• Data Limit: {v.dataLimitGb} GB</span>
+                  </div>
+                </div>
+                <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-0 pt-2 sm:pt-0 border-slate-100 gap-1 shrink-0">
+                  <span
+                    className={`px-3 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
+                      v.status === 'active'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : v.status === 'expired'
+                        ? 'bg-slate-100 text-slate-400 border border-slate-200'
+                        : v.status === 'used'
+                        ? 'bg-slate-100 text-slate-500 border border-slate-200'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}
+                  >
+                    {v.status}
+                  </span>
+                  <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                    Created: {new Date(v.dateCreated).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }

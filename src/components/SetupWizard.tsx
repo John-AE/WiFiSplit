@@ -22,7 +22,7 @@ export default function SetupWizard({ onComplete, onCancel }: SetupWizardProps) 
   const [currency, setCurrency] = useState<'NGN' | 'USD' | 'KES' | 'GHS' | 'ZAR'>('NGN');
   const [routerType, setRouterType] = useState<'Starlink' | 'MikroTik' | 'TP-Link' | 'Huawei 4G/5G' | 'Other'>('Starlink');
   const [coverageArea, setCoverageArea] = useState('200m radius centering campus hostel Block B');
-  const [bankName, setBankName] = useState('Moniepoint MFB');
+  const [bankName, setBankName] = useState('Opay');
   const [bankAccountNo, setBankAccountNo] = useState('8120001122');
   const [bankAccountName, setBankAccountName] = useState('Starlink Neighborhood Wi-Fi');
   
