@@ -26,9 +26,21 @@ import {
 
 export default function App() {
   // 1. Core Persistent States from localStorage
-  const [business, setBusiness] = useState<HotspotBusiness>(() => 
-    loadLocalData<HotspotBusiness>('business_profile', DefaultBusiness)
-  );
+  const [business, setBusiness] = useState<HotspotBusiness>(() => {
+    const loaded = loadLocalData<HotspotBusiness>('business_profile', DefaultBusiness);
+    if (!loaded.bankName || loaded.bankName.includes('Moniepoint')) {
+      const updated = {
+        ...loaded,
+        bankName: 'Opay',
+        bankAccountNo: '8123456789',
+        bankAccountName: 'Yaba Wireless Links',
+        paymentInstructions: 'Transfer exact amount to our Opay account. Specify transaction ref. Vouchers auto-generate post manual confirmation!'
+      };
+      saveLocalData('business_profile', updated);
+      return updated;
+    }
+    return loaded;
+  });
 
   const [plans, setPlans] = useState<HotspotPlan[]>(() => {
     const loaded = loadLocalData<HotspotPlan[]>('plans', []);
@@ -39,9 +51,15 @@ export default function App() {
     return loaded;
   });
 
-  const [vouchers, setVouchers] = useState<Voucher[]>(() => 
-    loadLocalData<Voucher[]>('vouchers', DefaultVouchers)
-  );
+  const [vouchers, setVouchers] = useState<Voucher[]>(() => {
+    const loaded = loadLocalData<Voucher[]>('vouchers', DefaultVouchers);
+    const hasOldPlans = loaded.some(v => v.planId && (v.planId.startsWith('p_') || !v.planId.startsWith('plan_')));
+    if (hasOldPlans) {
+      saveLocalData('vouchers', DefaultVouchers);
+      return DefaultVouchers;
+    }
+    return loaded;
+  });
 
   const [customers, setCustomers] = useState<Customer[]>(() => 
     loadLocalData<Customer[]>('customers', DefaultCustomers)
@@ -359,71 +377,18 @@ export default function App() {
             )}
 
             {currentRole === 'customer' && (
-              <div className="space-y-6">
-                
-                {/* Simulated view selector for Customers (Web App vs Android Web Mockup) */}
-                <div className="flex justify-between items-center bg-slate-100 border border-slate-200 p-2.5 rounded-xl">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                    <Smartphone className="w-3.5 h-3.5 text-brand-600" /> Device View Mode:
-                  </span>
-                  <div className="flex gap-1.5">
-                    <button
-                      onClick={() => setDeviceMockupView(false)}
-                      className={`px-3 py-1 rounded text-xs font-bold transition-all ${
-                        !deviceMockupView ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
-                      }`}
-                    >
-                      🖥️ Responsive Web Layout
-                    </button>
-                    <button
-                      onClick={() => setDeviceMockupView(true)}
-                      className={`px-3 py-1 rounded text-xs font-bold transition-all ${
-                        deviceMockupView ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
-                      }`}
-                    >
-                      📱 Companion Android App View
-                    </button>
-                  </div>
-                </div>
-
-                {deviceMockupView ? (
-                  /* Android viewport wrapper mockup */
-                  <div className="flex justify-center py-6 bg-slate-200 rounded-3xl border border-slate-300">
-                    <div className="w-[370px] h-[780px] bg-slate-900 rounded-[50px] p-3.5 shadow-2xl relative border-4 border-slate-800 font-sans">
-                      
-                      {/* Speaker camera notch */}
-                      <div className="absolute top-6 left-1/2 -ml-12 w-24 h-4 bg-slate-900 rounded-full z-20 flex justify-center items-center">
-                        <span className="w-2.5 h-2.5 bg-slate-800 rounded-full" />
-                      </div>
-
-                      {/* Screen container */}
-                      <div className="w-full h-full bg-slate-50 rounded-[38px] overflow-y-auto overflow-x-hidden p-4 pt-10 scrollbar-hidden">
-                        <CustomerPortal
-                          vouchers={vouchers}
-                          plans={plans}
-                          business={business}
-                          paymentRequests={paymentRequests}
-                          onSubmitPaymentRequest={handleSubmitPaymentRequest}
-                          onClearHistory={() => setVouchers([])}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <CustomerPortal
-                    vouchers={vouchers}
-                    plans={plans}
-                    business={business}
-                    paymentRequests={paymentRequests}
-                    onSubmitPaymentRequest={handleSubmitPaymentRequest}
-                    onClearHistory={() => {
-                      if (confirm("Reset local consumer sandbox vouchers history?")) {
-                        setVouchers(DefaultVouchers);
-                      }
-                    }}
-                  />
-                )}
-              </div>
+              <CustomerPortal
+                vouchers={vouchers}
+                plans={plans}
+                business={business}
+                paymentRequests={paymentRequests}
+                onSubmitPaymentRequest={handleSubmitPaymentRequest}
+                onClearHistory={() => {
+                  if (confirm("Reset local consumer sandbox vouchers history?")) {
+                    setVouchers(DefaultVouchers);
+                  }
+                }}
+              />
             )}
 
             {currentRole === 'super' && (

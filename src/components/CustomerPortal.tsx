@@ -312,7 +312,7 @@ export default function CustomerPortal({
                 <p className="text-slate-500 text-xs mt-1">Select a pricing model plan package below and transfer to launch!</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[540px] overflow-y-auto pr-1 scrollbar-thin">
                 {myActiveVouchers.map((voucher) => {
                   const percentLeft = (voucher.remainingDataGb / voucher.dataLimitGb) * 100;
                   return (
@@ -360,7 +360,7 @@ export default function CustomerPortal({
                       <div className="mt-3 flex justify-between items-center text-[10.5px] text-slate-500 border-t border-brand-100/50 pt-2 bg-slate-50/10">
                         <span>Speed Limit: <strong>⚡ {voucher.speedLimitMbps} Mbps</strong></span>
                         <span className="flex items-center gap-1 text-slate-600">
-                          <Timer className="w-3.5 h-3.5 text-brand-600" />
+                           <Timer className="w-3.5 h-3.5 text-brand-600" />
                           Auto-expires: <strong className="font-bold text-slate-800">Countdown Active</strong>
                         </span>
                       </div>
@@ -370,6 +370,31 @@ export default function CustomerPortal({
               </div>
             )}
           </div>
+
+          {/* List of customer payment request limits status */}
+          {paymentRequests.length > 0 && (
+            <div className="bg-white border border-slate-200/85 rounded-2xl p-5 shadow-sm space-y-2.5">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">⏳ My Pendings/Requests logs:</span>
+              <div className="space-y-2">
+                {paymentRequests.map((req) => (
+                  <div key={req.id} className="flex justify-between items-center text-xs p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                    <div>
+                      <span className="font-extrabold text-slate-800">{req.planName}</span>
+                      <p className="text-[9.5px] text-slate-400">Ref: {req.reference}</p>
+                    </div>
+                    <div>
+                      <span className={`px-2.5 py-1 rounded-full text-[9px] font-extrabold ${
+                        req.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
+                        req.status === 'Awaiting Approval' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {req.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Buying a new path & manuals screenshot submission */}
@@ -496,29 +521,6 @@ export default function CustomerPortal({
               <MessageCircle className="w-5 h-5 fill-current" />
             </a>
           </div>
-
-          {/* List of customer payment request limits status */}
-          {paymentRequests.length > 0 && (
-            <div className="bg-white border border-slate-200/85 rounded-2xl p-4 shadow-sm space-y-2.5">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">My Pendings/Requests logs:</span>
-              {paymentRequests.map((req) => (
-                <div key={req.id} className="flex justify-between items-center text-xs p-2 bg-slate-50 border border-slate-100 rounded-lg">
-                  <div>
-                    <span className="font-bold text-slate-800">{req.planName}</span>
-                    <p className="text-[9.5px] text-slate-400">Ref: {req.reference}</p>
-                  </div>
-                  <div>
-                    <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold ${
-                      req.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
-                      req.status === 'Awaiting Approval' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {req.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
 
         </div>
 
