@@ -838,8 +838,6 @@ export default function OwnerDashboard({
           { id: 'payments', label: `Pending Approvals (${totalApprovalsNeeded})` },
           { id: 'plans', label: 'Internet Plans Manager' },
           { id: 'customers', label: 'Customers CRM' },
-          { id: 'network', label: 'Starlink Live Sessions' },
-          { id: 'whatsapp', label: 'WhatsApp Dispatcher log' },
           { id: 'billing', label: '💳 Subscription (Paystack)' },
           { id: 'reports', label: 'Reports & Export' }
         ].map((tab) => {
