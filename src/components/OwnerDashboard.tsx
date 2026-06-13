@@ -77,12 +77,31 @@ export default function OwnerDashboard({
 
   const handleFirebaseBackup = async () => {
     setIsSyncingFirebase(true);
-    setFirebaseSyncResult(null);
+    setFirebaseSyncResult({
+      success: true,
+      message: "🔄 Resolving Firebase Authentication. Please check for a Google Login popup tab if not authenticated."
+    });
     try {
       const { doc, setDoc } = await import('firebase/firestore');
-      const { db } = await import('../firebase');
+      const { db, auth, googleProvider } = await import('../firebase');
+      const { signInWithPopup } = await import('firebase/auth');
       const configMod = await import('../../firebase-applet-config.json');
       const firebaseConfig = configMod.default || configMod;
+
+      let currentUser = auth.currentUser;
+      if (!currentUser) {
+        try {
+          const result = await signInWithPopup(auth, googleProvider);
+          currentUser = result.user;
+        } catch (authErr: any) {
+          throw new Error(`Google Auth Sign-In cancelled or failed: ${authErr.message || authErr}`);
+        }
+      }
+
+      setFirebaseSyncResult({
+        success: true,
+        message: `🔄 Authenticated as ${currentUser?.email}. Synchronizing collections to Firestore...`
+      });
 
       // 1. Sync business profile
       await setDoc(doc(db, "reseller_profiles", business.id), {
@@ -178,6 +197,39 @@ export default function OwnerDashboard({
           download_speed_mbps: Number(s.downloadSpeedMbps || 0),
           connected_duration: s.connectedDuration,
           voucher_code: s.voucherCode
+        });
+      }
+
+      // 6. Sync payment requests
+      for (const req of paymentRequests) {
+        await setDoc(doc(db, "payment_requests", req.id), {
+          id: req.id,
+          customer_name: req.customerName,
+          customer_phone: req.customerPhone,
+          customer_email: req.customerEmail || '',
+          plan_id: req.planId,
+          plan_name: req.planName,
+          plan_price: Number(req.planPrice),
+          screenshot_url: req.screenshotUrl || '',
+          reference: req.reference,
+          status: req.status,
+          timestamp: req.timestamp,
+          whatsapp_delivered: !!req.whatsappDelivered
+        });
+      }
+
+      // 7. Sync whatsapp message logs
+      for (const log of messageLogs) {
+        await setDoc(doc(db, "whatsapp_message_logs", log.id), {
+          id: log.id,
+          recipient_name: log.recipientName,
+          recipient_phone: log.recipientPhone,
+          message_type: log.messageType,
+          content: log.content,
+          status: log.status,
+          timestamp: log.timestamp,
+          plan_name: log.planName || '',
+          voucher_code: log.voucherCode || ''
         });
       }
 

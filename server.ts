@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
+import pg from 'pg';
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, 
@@ -21,6 +22,65 @@ const app = express();
 app.use(express.json());
 
 const PORT = 3000;
+
+// Neon PostgreSQL Connection Pools
+const { Pool } = pg;
+let pgPool: pg.Pool | null = null;
+let neonActive = false;
+let neonErrorMsg = '';
+
+// Temporary fallback cache for newly registered resellers if PG is offline
+let fallbackRegistrations: any[] = [];
+
+if (process.env.DATABASE_URL) {
+  try {
+    pgPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+    console.log('⚡ Neon PostgreSQL Pool defined successfully.');
+  } catch (err: any) {
+    neonErrorMsg = err.message;
+    console.error('❌ Failed to initialize PG client:', err.message);
+  }
+}
+
+async function initializePostgres() {
+  if (!pgPool) {
+    console.log('⚠️ DATABASE_URL not set in environment or loaded. Dual database is active with SQLite/Firebase and Memory fallbacks.');
+    return;
+  }
+  try {
+    const client = await pgPool.connect();
+    console.log('⚡ Connected to Neon PostgreSQL Database! Checking schemas...');
+    
+    // Create reseller registrations SQL table schema
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reseller_registrations (
+        id SERIAL PRIMARY KEY,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        business_name VARCHAR(255),
+        business_address TEXT,
+        email_address VARCHAR(255) UNIQUE,
+        whatsapp_number VARCHAR(100),
+        password VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'Pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    
+    neonActive = true;
+    client.release();
+    console.log('⚡ reseller_registrations schema is synchronized on Neon.');
+  } catch (err: any) {
+    neonActive = false;
+    neonErrorMsg = err.message;
+    console.error('❌ Neon PostgreSQL initialization failed:', err.message);
+  }
+}
+
+initializePostgres();
 
 // Initialize Firebase SDK
 const firebaseApp = initializeApp(firebaseConfig);
@@ -608,12 +668,114 @@ initializeFirebaseCollections();
 // DB Status Badge query
 app.get('/api/db-status', (req, res) => {
   res.json({
-    status: dbStatus,
-    error: dbErrorMsg,
-    neonActive: false,
+    status: neonActive ? 'connected' : dbStatus,
+    error: neonActive ? '' : (neonErrorMsg || dbErrorMsg),
+    neonActive: neonActive,
     firebaseActive: dbStatus === 'connected',
-    provider: 'Google Firebase Firestore (Spark / Free Tier Plan)'
+    provider: neonActive ? 'Neon Serverless PostgreSQL Database' : 'Google Firebase Firestore (Spark / Free Tier Plan)'
   });
+});
+
+// RESELLER REGISTRATION ENDPOINT (Neon Postgres connected)
+app.post('/api/reseller/register', async (req, res) => {
+  const { firstName, lastName, businessName, businessAddress, emailAddress, whatsappNumber, password } = req.body;
+  
+  if (!emailAddress || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+
+  if (neonActive && pgPool) {
+    try {
+      const result = await pgPool.query(
+        `INSERT INTO reseller_registrations (first_name, last_name, business_name, business_address, email_address, whatsapp_number, password)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [firstName, lastName, businessName, businessAddress, emailAddress, whatsappNumber, password]
+      );
+      console.log(`🎉 Reseller ${emailAddress} registered successfully in Neon Postgres database!`);
+      return res.json({ success: true, user: result.rows[0] });
+    } catch (err: any) {
+      console.error('❌ Neon SQL registration query failed:', err.message);
+      if (err.message.includes('unique constraint') || err.message.includes('already exists')) {
+        return res.status(400).json({ error: 'An account with this email address already exists.' });
+      }
+      return res.status(500).json({ error: `Neon SQL database error: ${err.message}` });
+    }
+  } else {
+    // In-memory local fallback registration
+    const exists = fallbackRegistrations.some(r => r.email_address?.toLowerCase() === emailAddress.toLowerCase());
+    if (exists) {
+      return res.status(400).json({ error: 'An account with this email address already exists in fallback cache.' });
+    }
+    const newReg = {
+      id: fallbackRegistrations.length + 1,
+      first_name: firstName,
+      last_name: lastName,
+      business_name: businessName,
+      business_address: businessAddress,
+      email_address: emailAddress,
+      whatsapp_number: whatsappNumber,
+      password: password,
+      status: 'Pending',
+      created_at: new Date()
+    };
+    fallbackRegistrations.push(newReg);
+    console.log(`🎉 Reseller ${emailAddress} registered successfully in offline sandbox caching!`);
+    return res.json({ success: true, user: newReg });
+  }
+});
+
+// RESELLER LOGIN/AUTH ENDPOINT (Neon Postgres check)
+app.post('/api/reseller/login', async (req, res) => {
+  const { email, password } = req.body;
+  
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  // Root Super Admin Default account
+  if (cleanEmail === 'johnnybgsu@gmail.com' && password === 'password123') {
+    return res.json({ 
+      success: true, 
+      user: { 
+        id: 'johnnybgsu',
+        email_address: 'johnnybgsu@gmail.com', 
+        first_name: 'John', 
+        last_name: 'A', 
+        business_name: 'Starlink Elite Wi-Fi' 
+      } 
+    });
+  }
+
+  if (neonActive && pgPool) {
+    try {
+      const result = await pgPool.query(
+        `SELECT * FROM reseller_registrations WHERE LOWER(email_address) = $1 AND password = $2`,
+        [cleanEmail, password]
+      );
+      if (result.rows.length > 0) {
+        console.log(`👤 Reseller authenticated successfully via Neon database: ${cleanEmail}`);
+        return res.json({ success: true, user: result.rows[0] });
+      } else {
+        return res.status(401).json({ error: 'Invalid reseller credentials. Please check details or click Register Here.' });
+      }
+    } catch (err: any) {
+      console.error('❌ Neon Login SQL query failed:', err.message);
+      return res.status(500).json({ error: `Neon SQL database login error: ${err.message}` });
+    }
+  } else {
+    // Check local fallback registrations
+    const found = fallbackRegistrations.find(
+      r => r.email_address?.toLowerCase() === cleanEmail && r.password === password
+    );
+    if (found) {
+      console.log(`👤 Reseller authenticated successfully via Sandbox local offline cache: ${cleanEmail}`);
+      return res.json({ success: true, user: found });
+    }
+  }
+
+  return res.status(401).json({ error: 'Unauthorized Reseller. Check credentials or register first.' });
 });
 
 // RESELLER BUSINESS PROFILE
