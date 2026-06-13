@@ -93,6 +93,8 @@ export interface HotspotBusiness {
   paymentInstructions: string;
   whatsappProvider: 'Meta Cloud API' | 'Twilio' | 'Termii' | 'UltraMsg';
   whatsappApiKey: string;
+  emailAlertsEnabled?: boolean;
+  adminAlertEmail?: string;
 }
 
 export interface SaaSPlan {

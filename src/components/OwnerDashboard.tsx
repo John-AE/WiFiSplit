@@ -931,12 +931,7 @@ export default function OwnerDashboard({
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-brand-600 group-hover:translate-x-1 transition-all" />
                 </button>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Quick Stats overview of limits */}
+                {/* Quick Stats overview of limits */}
           <div className="bg-gradient-to-r from-emerald-950 to-brand-900 text-brand-100 rounded-2xl p-5 border border-brand-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex gap-2 items-center">
               <span className="text-xl">🚀</span>
@@ -954,6 +949,112 @@ export default function OwnerDashboard({
               <div>
                 <span className="text-brand-300 text-[10px] block uppercase">WhatsApp Dispatch alert logs</span>
                 <strong className="text-white text-sm">{messageLogs.length} / 3,000 limit</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* SaaS Alert Threshold & Email Settings Box */}
+          <div className="bg-white border border-slate-200/85 rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-150">
+              <span className="text-lg">📧</span>
+              <div>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                  SaaS Plan Resource Warning Alerts & Settings
+                </h4>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Receive real-time notifications on your email when your hotspot system nears premium credit thresholds.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+              <div className="md:col-span-7 space-y-4">
+                <div className="space-y-1">
+                  <label htmlFor="adminAlertEmailInput" className="block text-[10px] font-bold text-slate-600 uppercase">
+                    Receiver Administrator Alert Email
+                  </label>
+                  <input
+                    id="adminAlertEmailInput"
+                    type="email"
+                    placeholder="e.g. yourname@gmail.com"
+                    value={business.adminAlertEmail || ''}
+                    onChange={(e) => {
+                      onUpdateBusiness({
+                        ...business,
+                        adminAlertEmail: e.target.value
+                      });
+                    }}
+                    className="w-full text-xs border border-slate-300 hover:border-slate-450 rounded-xl px-3 py-2.5 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-brand-500 font-mono"
+                  />
+                  <p className="text-[9.5px] text-slate-400 font-medium">
+                    This primary address is where warning reports and weekly limits telemetry logs are dispatched.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-2.5 p-3.5 bg-brand-50/45 border border-brand-200/60 rounded-xl">
+                  <input
+                    id="emailAlertsEnabledCheck"
+                    type="checkbox"
+                    checked={!!business.emailAlertsEnabled}
+                    onChange={(e) => {
+                      onUpdateBusiness({
+                        ...business,
+                        emailAlertsEnabled: e.target.checked
+                      });
+                      triggerAlert(
+                        e.target.checked 
+                          ? "📢 Email Warning alerts successfully activated in Firestore Database!" 
+                          : "📢 Warning alerts deactivated successfully."
+                      );
+                    }}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                  />
+                  <div className="cursor-pointer select-none">
+                    <label htmlFor="emailAlertsEnabledCheck" className="text-xs font-bold text-slate-800 block cursor-pointer">
+                      Activate Limit & Quota Threshold Alerts
+                    </label>
+                    <p className="text-[10px] text-slate-500 leading-normal mt-0.5 font-medium">
+                      Automatically triggers warning dispatch requests when Vouchers generated or WhatsApp Logs credits exceed <strong className="text-brand-800">80%</strong> and <strong className="text-brand-800">95%</strong> thresholds.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-150 rounded-xl p-3 text-xs flex gap-2">
+                  <span className="text-brand-600">🔔</span>
+                  <div>
+                    <strong className="text-slate-800 block text-[10.5px]">Seeded Firebase Dispatch Engine:</strong>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      Your preferences sync automatically with your cloud document storage on the <code className="bg-slate-100 px-1 py-0.5 rounded text-rose-600">reseller_profiles</code> collection.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Preview Column representational content */}
+              <div className="md:col-span-5 bg-slate-950 text-slate-100 rounded-xl p-4.5 border border-slate-800 font-mono text-[10.5px] leading-relaxed shadow-lg relative overflow-hidden">
+                <span className="absolute top-2 right-2 text-[9px] bg-sky-500/20 text-sky-400 font-black border border-sky-500/30 px-1.5 py-0.5 rounded uppercase">
+                  Alert Preview
+                </span>
+                <p className="text-brand-300 font-bold border-b border-slate-800 pb-1.5 mb-2 uppercase text-[9.5px]">
+                  ✉️ Outgoing Resend Dispatch Template
+                </p>
+                <div className="space-y-1 text-slate-400">
+                  <p><span className="text-slate-500">From:</span> alerts@wifisplit.ng</p>
+                  <p><span className="text-slate-500">To:</span> <span className="text-white font-bold">{business.adminAlertEmail || 'johnnybgsu@gmail.com'}</span></p>
+                  <p><span className="text-slate-500">Subject:</span> [CRITICAL WARNING] Hotspot Quota Usage Limit Warning</p>
+                  <div className="border-t border-slate-800/80 my-2 pt-2 text-slate-300 leading-normal">
+                    <p>Hello Hotspot Reseller,</p>
+                    <p className="mt-1">Your hotspot account <span className="text-brand-300">"{business.businessName || 'Starlink Elite Wi-Fi'}"</span> is approaching its monthly SaaS subscription threshold limits:</p>
+                    <ul className="list-disc pl-4 mt-1.5 text-brand-100 space-y-0.5 font-bold">
+                      <li>WhatsApp Delivery Credits: {messageLogs.length} / 3,000 resources (Status: OK)</li>
+                      <li>Registered Vouchers: {vouchers.length} / 2,500 plans</li>
+                    </ul>
+                    <p className="mt-2 text-slate-400 text-[9.5px]">Configure your VITE_RESEND_API_KEY environment secret list to deploy live dispatch notifications to this address.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
               </div>
             </div>
           </div>
