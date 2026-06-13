@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // STANDALONE GLOBAL HELPERS
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isReseller() {
+      return isSignedIn() && 
+             request.auth.token.email_verified == true && 
+             request.auth.token.email == "johnnybgsu@gmail.com";
+    }
+
+    function isSubscriber() {
+      return isSignedIn() && 
+             request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+    
+    // 1. Reseller Profiles
+    match /reseller_profiles/{profileId} {
+      allow read: if true;
+      allow write: if isReseller() && isValidId(profileId);
+    }
+
+    // 2. Internet Plans
+    match /internet_plans/{planId} {
+      allow read: if true;
+      allow write: if isReseller() && isValidId(planId);
+    }
+
+    // 3. Payment Requests
+    match /payment_requests/{requestId} {
+      allow create: if isValidId(requestId) &&
+                     incoming().customer_name is string && incoming().customer_name.size() > 0 &&
+                     incoming().customer_phone is string && incoming().customer_phone.size() > 0 &&
+                     incoming().plan_id is string && incoming().plan_id.size() > 0 &&
+                     incoming().status == 'Awaiting Approval';
+      allow read, update, delete: if isReseller() && isValidId(requestId);
+    }
+
+    // 4. Active Vouchers
+    match /active_vouchers/{voucherId} {
+      allow read: if isReseller() || isSubscriber();
+      allow write: if isReseller() && isValidId(voucherId);
+    }
+
+    // 5. Customers
+    match /customers/{customerId} {
+      allow read: if isReseller() || (isSignedIn() && customerId == request.auth.uid);
+      allow write: if isReseller() && isValidId(customerId);
+    }
+
+    // 6. Active Sessions
+    match /active_sessions/{sessionId} {
+      allow read: if isReseller() || isSubscriber();
+      allow write: if isReseller() && isValidId(sessionId);
+    }
+
+    // 7. Message Logs
+    match /whatsapp_message_logs/{logId} {
+      allow read: if isReseller();
+      allow write: if isReseller() && isValidId(logId);
+    }
+
+    // 8. System Config
+    match /system_config/{configId} {
+      allow read: if true;
+      allow write: if isReseller() && isValidId(configId);
+    }
+  }
+}

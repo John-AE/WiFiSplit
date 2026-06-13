@@ -71,6 +71,131 @@ export default function OwnerDashboard({
 
   const [activeTab, setActiveTab] = useState<'overview' | 'vouchers' | 'payments' | 'plans' | 'customers' | 'network' | 'whatsapp' | 'billing' | 'reports'>('overview');
 
+  // Firebase Sync State
+  const [isSyncingFirebase, setIsSyncingFirebase] = useState(false);
+  const [firebaseSyncResult, setFirebaseSyncResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleFirebaseBackup = async () => {
+    setIsSyncingFirebase(true);
+    setFirebaseSyncResult(null);
+    try {
+      const { doc, setDoc } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+      const configMod = await import('../../firebase-applet-config.json');
+      const firebaseConfig = configMod.default || configMod;
+
+      // 1. Sync business profile
+      await setDoc(doc(db, "reseller_profiles", business.id), {
+        id: business.id,
+        business_name: business.businessName,
+        logo_emoji: business.logoEmoji || '⚡',
+        logo_bg_color: business.logoBgColor || '#059669',
+        phone: business.phone,
+        whatsapp_number: business.whatsapp,
+        location: business.location || '',
+        currency: business.currency || 'NGN',
+        timezone: business.timezone || 'Africa/Lagos',
+        router_type: business.routerType || 'Starlink',
+        coverage_area: business.coverageArea || '',
+        bank_name: business.bankName || '',
+        bank_account_no: business.bankAccountNo || '',
+        bank_account_name: business.bankAccountName || '',
+        payment_instructions: business.paymentInstructions || '',
+        whatsapp_provider: business.whatsappProvider || 'Meta Cloud API',
+        whatsapp_api_key: business.whatsappApiKey || ''
+      });
+
+      // 2. Sync active plans
+      for (const p of plans) {
+        await setDoc(doc(db, "internet_plans", p.id), {
+          id: p.id,
+          name: p.name,
+          price: Number(p.price),
+          data_limit_gb: Number(p.dataLimitGb),
+          duration_hours: Number(p.durationHours),
+          speed_limit_mbps: Number(p.speedLimitMbps),
+          device_limit: Number(p.deviceLimit || 1),
+          validity_period_days: Number(p.validityPeriodDays || 1),
+          auto_expiry: p.autoExpiry !== false,
+          description: p.description || '',
+          is_active: p.isActive !== false,
+          is_popular: !!p.isPopular
+        });
+      }
+
+      // 3. Sync vouchers
+      for (const v of vouchers) {
+        await setDoc(doc(db, "active_vouchers", v.id), {
+          id: v.id,
+          code: v.code,
+          plan_id: v.planId,
+          plan_name: v.planName,
+          plan_price: Number(v.planPrice),
+          status: v.status,
+          date_created: v.dateCreated,
+          duration_hours: Number(v.durationHours),
+          data_limit_gb: Number(v.dataLimitGb),
+          remaining_data_gb: Number(v.remainingDataGb),
+          speed_limit_mbps: Number(v.speedLimitMbps),
+          customer_name: v.customerName,
+          customer_phone: v.customerPhone,
+          customer_email: v.customerEmail || '',
+          is_multi_device: !!v.isMultiDevice,
+          device_limit: Number(v.deviceLimit || 1),
+          notes: v.notes || ''
+        });
+      }
+
+      // 4. Sync customers
+      for (const c of customers) {
+        await setDoc(doc(db, "customers", c.id), {
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          whatsapp: c.whatsapp || '',
+          active_plan_id: c.activePlanId || '',
+          active_plan_name: c.activePlanName || '',
+          expiry_time: c.expiryTime || '',
+          total_spend: Number(c.totalSpend || 0),
+          history_vouchers_count: Number(c.historyVouchersCount || 0),
+          is_suspended: !!c.isSuspended,
+          is_blacklisted: !!c.isBlacklisted,
+          notes: c.notes || '',
+          joined_date: c.joinedDate || ''
+        });
+      }
+
+      // 5. Sync active sessions
+      for (const s of sessions) {
+        await setDoc(doc(db, "active_sessions", s.id), {
+          id: s.id,
+          customer_name: s.customerName,
+          ip_address: s.ipAddress,
+          mac_address: s.macAddress,
+          device_type: s.deviceType || 'General Device',
+          data_used_gb: Number(s.dataUsedGb || 0),
+          upload_speed_mbps: Number(s.uploadSpeedMbps || 0),
+          download_speed_mbps: Number(s.downloadSpeedMbps || 0),
+          connected_duration: s.connectedDuration,
+          voucher_code: s.voucherCode
+        });
+      }
+
+      setFirebaseSyncResult({
+        success: true,
+        message: `🎉 All Hotspot parameters and tables successfully backup under Firestore database '${firebaseConfig.projectId}'!`
+      });
+    } catch (e: any) {
+      console.error('Firebase manual backup sync failed:', e);
+      setFirebaseSyncResult({
+        success: false,
+        message: `❌ Failed writing backup snapshot to Firebase: ${e.message}`
+      });
+    } finally {
+      setIsSyncingFirebase(false);
+    }
+  };
+
   // Paystack mock checkout state
   const [showPaystackCheckout, setShowPaystackCheckout] = useState(false);
   const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<SaaSPlan | null>(null);
@@ -1812,6 +1937,48 @@ export default function OwnerDashboard({
               </div>
             )}
           </div>
+
+          {/* Firebase Sync Hub */}
+          <div className="bg-slate-900 text-slate-100 rounded-2xl p-6 border border-slate-800 shadow-xl mt-8">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+              <div className="space-y-2 max-w-2xl">
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-sky-500/10 text-sky-450 border border-sky-500/20 text-[9.5px] uppercase font-black tracking-wider rounded-md">
+                  ❄️ Firebase Cloud Persistence Engine Enforced
+                </div>
+                <h4 className="text-lg font-black tracking-tight text-white">Firebase Storage Backups & Client Authentications</h4>
+                <p className="text-slate-400 text-xs leading-relaxed">
+                  Export and synchronize your entire captive portal environment to your Google Firebase project. Real-time active vouchers, customers, payment requests, and tariff plans are mapped directly to your Firebase Firestore collections.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 self-start lg:self-center shrink-0">
+                <button
+                  type="button"
+                  onClick={handleFirebaseBackup}
+                  disabled={isSyncingFirebase}
+                  className={`px-5 py-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                    isSyncingFirebase
+                      ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-sky-400 to-indigo-500 hover:from-sky-500 hover:to-indigo-600 text-slate-950 font-black shadow-lg shadow-indigo-500/10 cursor-pointer'
+                  }`}
+                >
+                  <RefreshCw className={`w-4 h-4 ${isSyncingFirebase ? 'animate-spin' : ''}`} />
+                  {isSyncingFirebase ? 'Syncing Tables...' : 'Trigger Cloud Sync to Firestore'}
+                </button>
+              </div>
+            </div>
+
+            {firebaseSyncResult && (
+              <div className={`mt-4 p-3 rounded-xl text-xs border ${
+                firebaseSyncResult.success 
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                  : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+              }`}>
+                {firebaseSyncResult.message}
+              </div>
+            )}
+          </div>
+
         </div>
       )}
 

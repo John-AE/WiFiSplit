@@ -153,38 +153,28 @@ CREATE TABLE IF NOT EXISTS active_vouchers (
       <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-brand-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-10 right-1/4 w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-[140px] pointer-events-none" />
 
-      {/* Landing page header navbar */}
-      <nav className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-30 py-4 px-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="w-10 h-10 rounded-2xl bg-brand-500 text-slate-950 flex items-center justify-center font-black text-lg tracking-tighter shadow-lg shadow-brand-500/20">
-              W
-            </span>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-black tracking-wider text-white uppercase">WiFiSplit™</span>
-                <span className="text-[9px] font-bold bg-brand-500/10 text-brand-400 border border-brand-500/20 px-2 py-0.5 rounded-full uppercase">SaaS v2.4</span>
-              </div>
-              <p className="text-[10px] text-slate-400 font-medium">Smart Starlink Monetization Engine</p>
-            </div>
+      {/* Landing page header navbar (Floating, Rounded, and Sticky) */}
+      <nav className="sticky top-[76px] z-30 mx-auto w-[92%] max-w-6xl border border-slate-800 bg-slate-950/90 backdrop-blur-md py-3 px-6 rounded-2xl shadow-xl shadow-slate-950/40">
+        <div className="flex items-center justify-between gap-4">
+          
+          {/* Leftside Navigation links - Clean & Minimalist */}
+          <div className="flex items-center gap-6 text-xs font-bold text-slate-400">
+            <a href="#features" className="hover:text-white tracking-wide transition-colors">Features</a>
+            <a href="#workflow" className="hover:text-white tracking-wide transition-colors">How it Works</a>
+            <a href="#pricing" className="hover:text-white tracking-wide transition-colors">Pricing Profiles</a>
           </div>
 
-          <div className="hidden md:flex items-center gap-6 text-xs font-bold text-slate-400">
-            <a href="#features" className="hover:text-white transition-colors">Features</a>
-            <a href="#workflow" className="hover:text-white transition-colors">How it Works</a>
-            <a href="#pricing" className="hover:text-white transition-colors">Pricing Profiles</a>
-          </div>
-
+          {/* Rightside Action buttons */}
           <div className="flex items-center gap-2.5">
             <button
               onClick={onEnterSubscriber}
-              className="px-3.5 py-1.5 border border-slate-700 hover:border-slate-500 bg-slate-900 rounded-xl text-xs font-bold transition-all text-slate-350"
+              className="px-3.5 py-1.5 border border-slate-700 hover:border-slate-500 bg-slate-900 rounded-xl text-xs font-bold transition-all text-slate-350 shrink-0"
             >
               👤 Client Portal
             </button>
             <button
               onClick={onEnterReseller}
-              className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 text-slate-950 rounded-xl text-xs font-black transition-all shadow-md shadow-brand-500/10 flex items-center gap-1"
+              className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 text-slate-950 rounded-xl text-xs font-black transition-all shadow-md shadow-brand-500/10 flex items-center gap-1 shrink-0"
             >
               🏢 Launch Admin <ArrowRight className="w-3.5 h-3.5" />
             </button>

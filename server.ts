@@ -112,6 +112,188 @@ let fallbackPlans = [
     autoExpiry: true,
     description: '2.5GB premium speed pass for video calls and streamings.',
     isActive: true
+  },
+  {
+    id: 'plan_1d_3_5gb',
+    name: '₦700 Daily Max',
+    price: 700,
+    dataLimitGb: 3.5,
+    durationHours: 24,
+    speedLimitMbps: 10,
+    deviceLimit: 1,
+    validityPeriodDays: 1,
+    autoExpiry: true,
+    description: '3.5GB maximum high-speed daily pass valid for 24 hours.',
+    isActive: true
+  },
+  {
+    id: 'plan_7d_1gb',
+    name: '₦400 Weekly Starter',
+    price: 400,
+    dataLimitGb: 1,
+    durationHours: 168,
+    speedLimitMbps: 5,
+    deviceLimit: 1,
+    validityPeriodDays: 7,
+    autoExpiry: true,
+    description: '1GB weekly light saver. Best for quick essential runs.',
+    isActive: true
+  },
+  {
+    id: 'plan_7d_3_5gb_a',
+    name: '₦900 Weekly Light',
+    price: 900,
+    dataLimitGb: 3.5,
+    durationHours: 168,
+    speedLimitMbps: 7,
+    deviceLimit: 1,
+    validityPeriodDays: 7,
+    autoExpiry: true,
+    description: '3.5GB weekly entry-plan valid for 7 full days.',
+    isActive: true
+  },
+  {
+    id: 'plan_7d_3_5gb_b',
+    name: '₦900 Weekly Promo',
+    price: 900,
+    dataLimitGb: 3.5,
+    durationHours: 168,
+    speedLimitMbps: 7,
+    deviceLimit: 2,
+    validityPeriodDays: 7,
+    autoExpiry: true,
+    description: '3.5GB weekly promo with 2 concurrent devices support.',
+    isActive: true
+  },
+  {
+    id: 'plan_7d_11gb',
+    name: '₦2,500 Weekly Premium',
+    price: 2500,
+    dataLimitGb: 11,
+    durationHours: 168,
+    speedLimitMbps: 12,
+    deviceLimit: 2,
+    validityPeriodDays: 7,
+    autoExpiry: true,
+    description: '11GB premium high-speed weekly plan for active users.',
+    isActive: true
+  },
+  {
+    id: 'plan_7d_15gb',
+    name: '₦3,200 Weekly Ultimate',
+    price: 3200,
+    dataLimitGb: 15,
+    durationHours: 168,
+    speedLimitMbps: 15,
+    deviceLimit: 2,
+    validityPeriodDays: 7,
+    autoExpiry: true,
+    description: '15GB supreme high-speed weekly plan with lower latency.',
+    isActive: true
+  },
+  {
+    id: 'plan_7d_20gb',
+    name: '₦4,000 Weekly Extreme',
+    price: 4000,
+    dataLimitGb: 20,
+    durationHours: 168,
+    speedLimitMbps: 20,
+    deviceLimit: 3,
+    validityPeriodDays: 7,
+    autoExpiry: true,
+    description: '20GB high speed weekly extreme plan for shared devices.',
+    isActive: true
+  },
+  {
+    id: 'plan_14d_12_5gb',
+    name: '₦3,500 Fortnightly Light',
+    price: 3500,
+    dataLimitGb: 12.5,
+    durationHours: 336,
+    speedLimitMbps: 10,
+    deviceLimit: 2,
+    validityPeriodDays: 14,
+    autoExpiry: true,
+    description: '12.5GB value fortnightly plan for students.',
+    isActive: true
+  },
+  {
+    id: 'plan_14d_18gb',
+    name: '₦5,000 Fortnightly Plus',
+    price: 5000,
+    dataLimitGb: 18,
+    durationHours: 336,
+    speedLimitMbps: 12,
+    deviceLimit: 2,
+    validityPeriodDays: 14,
+    autoExpiry: true,
+    description: '18GB data cap valid for 14 full days.',
+    isActive: true
+  },
+  {
+    id: 'plan_14d_28gb',
+    name: '₦6,500 Fortnightly Pro',
+    price: 6500,
+    dataLimitGb: 28,
+    durationHours: 336,
+    speedLimitMbps: 15,
+    deviceLimit: 3,
+    validityPeriodDays: 14,
+    autoExpiry: true,
+    description: '28GB professional fortnightly data cap for active students.',
+    isActive: true
+  },
+  {
+    id: 'plan_14d_40gb',
+    name: '₦8,000 Fortnightly Elite',
+    price: 8000,
+    dataLimitGb: 40,
+    durationHours: 336,
+    speedLimitMbps: 18,
+    deviceLimit: 3,
+    validityPeriodDays: 14,
+    autoExpiry: true,
+    description: '40GB top-tier fortnightly high-speed package.',
+    isActive: true
+  },
+  {
+    id: 'plan_30d_30gb',
+    name: '₦5,000 Monthly Basic',
+    price: 5000,
+    dataLimitGb: 30,
+    durationHours: 720,
+    speedLimitMbps: 10,
+    deviceLimit: 2,
+    validityPeriodDays: 30,
+    autoExpiry: true,
+    description: '30GB high-speed monthly data cap valid for 30 days.',
+    isActive: true
+  },
+  {
+    id: 'plan_30d_60gb',
+    name: '₦7,500 Monthly Value',
+    price: 7500,
+    dataLimitGb: 60,
+    durationHours: 720,
+    speedLimitMbps: 15,
+    deviceLimit: 3,
+    validityPeriodDays: 30,
+    autoExpiry: true,
+    description: '60GB rapid monthly subscription with dual-device access.',
+    isActive: true
+  },
+  {
+    id: 'plan_30d_120gb',
+    name: '₦15,000 Monthly Elite',
+    price: 15000,
+    dataLimitGb: 120,
+    durationHours: 720,
+    speedLimitMbps: 25,
+    deviceLimit: 5,
+    validityPeriodDays: 30,
+    autoExpiry: true,
+    description: '120GB supreme Starlink power-user data cap valid for 30 days.',
+    isActive: true
   }
 ];
 
@@ -482,6 +664,36 @@ async function initializeDatabaseTables() {
         console.log('🚀 Seed data successfully established in Neon tables!');
       } else {
         console.log('✅ Tables populated. Skipping seeding.');
+      }
+
+      // Guarantee all 17 default plans are present in internet_plans
+      const plansCountRes = await client.query("SELECT COUNT(*) FROM internet_plans");
+      const plansCount = parseInt(plansCountRes.rows[0].count);
+      if (plansCount < 10) {
+        console.log(`📡 Only ${plansCount} internet plans found. Inserting/Updating all 17 target default plans...`);
+        for (const plan of fallbackPlans) {
+          await client.query(`
+            INSERT INTO internet_plans (
+              id, name, price, data_limit_gb, duration_hours, speed_limit_mbps, device_limit, validity_period_days, auto_expiry, description, is_active, is_popular
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            ON CONFLICT (id) DO UPDATE SET 
+              name = EXCLUDED.name,
+              price = EXCLUDED.price,
+              data_limit_gb = EXCLUDED.data_limit_gb,
+              duration_hours = EXCLUDED.duration_hours,
+              speed_limit_mbps = EXCLUDED.speed_limit_mbps,
+              device_limit = EXCLUDED.device_limit,
+              validity_period_days = EXCLUDED.validity_period_days,
+              auto_expiry = EXCLUDED.auto_expiry,
+              description = EXCLUDED.description,
+              is_active = EXCLUDED.is_active,
+              is_popular = EXCLUDED.is_popular
+          `, [
+            plan.id, plan.name, plan.price, plan.dataLimitGb, plan.durationHours, plan.speedLimitMbps,
+            plan.deviceLimit, plan.validityPeriodDays, plan.autoExpiry, plan.description, plan.isActive, plan.isPopular || false
+          ]);
+        }
+        console.log("✅ Successfully populated all 17 internet plans!");
       }
     } finally {
       client.release();
