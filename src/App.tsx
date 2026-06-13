@@ -256,18 +256,31 @@ export default function App() {
     async function loadAllDbData() {
       try {
         const statusRes = await fetch('/api/db-status');
+        const ct = statusRes.headers.get('content-type');
+        if (!ct || !ct.includes('application/json')) {
+          throw new Error('Server returned unparseable text format, the backend might be updating.');
+        }
         const statusData = await statusRes.json();
         setDbStatusInfo(statusData);
 
         if (statusData.neonActive) {
+          const safeFetchJson = async (url: string) => {
+            const r = await fetch(url);
+            const rct = r.headers.get('content-type');
+            if (!rct || !rct.includes('application/json')) {
+              throw new Error(`Endpoint ${url} did not return JSON format.`);
+            }
+            return r.json();
+          };
+
           const [bizRes, planRes, vchRes, custRes, payRes, logRes, opRes] = await Promise.all([
-            fetch('/api/business').then(r => r.json()),
-            fetch('/api/plans').then(r => r.json()),
-            fetch('/api/vouchers').then(r => r.json()),
-            fetch('/api/customers').then(r => r.json()),
-            fetch('/api/payments').then(r => r.json()),
-            fetch('/api/message-logs').then(r => r.json()),
-            fetch('/api/operator').then(r => r.json())
+            safeFetchJson('/api/business'),
+            safeFetchJson('/api/plans'),
+            safeFetchJson('/api/vouchers'),
+            safeFetchJson('/api/customers'),
+            safeFetchJson('/api/payments'),
+            safeFetchJson('/api/message-logs'),
+            safeFetchJson('/api/operator')
           ]);
 
           if (bizRes && bizRes.id) setBusiness(bizRes);

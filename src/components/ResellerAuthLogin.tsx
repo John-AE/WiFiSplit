@@ -47,6 +47,10 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password })
       });
+      const ct = res.headers.get('content-type');
+      if (!ct || !ct.includes('application/json')) {
+        throw new Error('Server returned invalid HTML or text. This usually happens when the backend server is restarting or initializing. Please retry in 5-10 seconds.');
+      }
       const data = await res.json();
       if (res.ok && data.success) {
         onSuccess(email.trim(), data.user);
@@ -110,6 +114,11 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
           password: regPassword
         })
       });
+
+      const ct = res.headers.get('content-type');
+      if (!ct || !ct.includes('application/json')) {
+        throw new Error('Server returned invalid HTML or text. This usually happens when the backend server is restarting or initializing. Please retry in 5-10 seconds.');
+      }
 
       const data = await res.json();
       if (res.ok && data.success) {
