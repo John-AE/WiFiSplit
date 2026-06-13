@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Wifi, Key, AlertTriangle, Sparkles, Send, ShieldCheck, UserPlus, ArrowLeft, ArrowRight, MapPin, Phone, Mail } from 'lucide-react';
 
 interface ResellerAuthLoginProps {
-  onSuccess: (email: string) => void;
+  onSuccess: (email: string, user?: any) => void;
   onCancel: () => void;
 }
 
@@ -49,7 +49,7 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        onSuccess(email.trim());
+        onSuccess(email.trim(), data.user);
       } else {
         setError(data.error || 'Identity verification failed.');
       }
@@ -116,7 +116,7 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
         setSuccessMsg('🎉 Account initialized successfully on Relational DB!');
         setTimeout(() => {
           // Log user in automatically post-registration
-          onSuccess(regEmail.trim());
+          onSuccess(regEmail.trim(), data.user);
         }, 1200);
       } else {
         setError(data.error || 'Registration failed. Check parameters.');
@@ -430,25 +430,6 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
                 </button>
               </div>
             </form>
-
-            {/* Demo Fast Account Quickfill box */}
-            <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3 mt-4 text-left relative z-10">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Default admin login profile
-                </span>
-                <button
-                  onClick={handleQuickFill}
-                  type="button"
-                  className="text-[10px] font-extrabold text-amber-500 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg hover:bg-amber-500/20 transition-colors"
-                >
-                  ⚡ Fill John A
-                </button>
-              </div>
-              <p className="text-[10.5px] text-slate-400 leading-normal font-semibold">
-                You can authenticate with our default demo or click Register to populate a new custom record on the relational table.
-              </p>
-            </div>
           </div>
         )}
 

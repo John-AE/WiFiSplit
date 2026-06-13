@@ -98,6 +98,9 @@ export default function App() {
   const [isResellerAuthed, setIsResellerAuthed] = useState<boolean>(() => {
     return loadLocalData<boolean>('is_reseller_authed', false);
   });
+  const [resellerUser, setResellerUser] = useState<any>(() => {
+    return loadLocalData<any>('reseller_user', null);
+  });
   const [isSubscriberAuthed, setIsSubscriberAuthed] = useState<boolean>(() => {
     return loadLocalData<boolean>('is_subscriber_authed', false);
   });
@@ -105,6 +108,10 @@ export default function App() {
   useEffect(() => {
     saveLocalData('is_reseller_authed', isResellerAuthed);
   }, [isResellerAuthed]);
+
+  useEffect(() => {
+    saveLocalData('reseller_user', resellerUser);
+  }, [resellerUser]);
 
   useEffect(() => {
     saveLocalData('is_subscriber_authed', isSubscriberAuthed);
@@ -571,12 +578,26 @@ export default function App() {
               {currentRole === 'owner' && (
                 !isResellerAuthed ? (
                   <ResellerAuthLogin 
-                    onSuccess={() => setIsResellerAuthed(true)} 
+                    onSuccess={(email, user) => {
+                      setIsResellerAuthed(true);
+                      if (user) {
+                        setResellerUser(user);
+                        // Sync business profile states with corresponding name, location, and contact parameters
+                        setBusiness(prev => ({
+                          ...prev,
+                          businessName: user.business_name || user.businessName || prev.businessName,
+                          phone: user.whatsapp_number || user.whatsappNumber || prev.phone,
+                          whatsapp: user.whatsapp_number || user.whatsappNumber || prev.whatsapp,
+                          location: user.business_address || user.businessAddress || prev.locationOpen || prev.location,
+                        }));
+                      }
+                    }} 
                     onCancel={() => setCurrentRole('landing')} 
                   />
                 ) : (
                   <OwnerDashboard
                     business={business}
+                    resellerUser={resellerUser}
                     onUpdateBusiness={(b) => { setBusiness(b); updateBusinessApi(b); }}
                     plans={plans}
                     onAddPlan={(newP) => { setPlans([newP, ...plans]); savePlanApi(newP); }}
@@ -601,7 +622,7 @@ export default function App() {
                     onUpgradeSaaSTier={(tier) => { setCurrentSaaSTier(tier); upgradeSaaSTierApi(tier); }}
                     triggerPrintView={handleTriggerPrintSlips}
                     announcement={announcement}
-                    onLogout={() => { setIsResellerAuthed(false); }}
+                    onLogout={() => { setIsResellerAuthed(false); setResellerUser(null); }}
                   />
                 )
               )}

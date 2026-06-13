@@ -734,20 +734,6 @@ app.post('/api/reseller/login', async (req, res) => {
 
   const cleanEmail = email.trim().toLowerCase();
 
-  // Root Super Admin Default account
-  if (cleanEmail === 'johnnybgsu@gmail.com' && password === 'password123') {
-    return res.json({ 
-      success: true, 
-      user: { 
-        id: 'johnnybgsu',
-        email_address: 'johnnybgsu@gmail.com', 
-        first_name: 'John', 
-        last_name: 'A', 
-        business_name: 'Starlink Elite Wi-Fi' 
-      } 
-    });
-  }
-
   if (neonActive && pgPool) {
     try {
       const result = await pgPool.query(

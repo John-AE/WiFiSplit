@@ -14,6 +14,7 @@ import {
 interface OwnerDashboardProps {
   business: HotspotBusiness;
   onUpdateBusiness: (b: HotspotBusiness) => void;
+  resellerUser?: any;
   plans: HotspotPlan[];
   onAddPlan: (p: HotspotPlan) => void;
   onUpdatePlan: (p: HotspotPlan) => void;
@@ -43,6 +44,7 @@ interface OwnerDashboardProps {
 export default function OwnerDashboard({
   business,
   onUpdateBusiness,
+  resellerUser,
   plans,
   onAddPlan,
   onUpdatePlan,
@@ -740,10 +742,13 @@ export default function OwnerDashboard({
           </span>
           <div>
             <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-              {business.businessName} <span className="bg-blue-50 text-blue-700 border border-blue-100 text-[10px] px-2 py-0.5 rounded font-extrabold uppercase">Growth Subscription</span>
+              {resellerUser ? (resellerUser.business_name || resellerUser.businessName) : business.businessName} <span className="bg-blue-50 text-blue-700 border border-blue-100 text-[10px] px-2 py-0.5 rounded font-extrabold uppercase">Growth Subscription</span>
             </h1>
-            <p className="text-slate-400 text-xs mt-0.5 font-medium">
-              📍 Area: <strong>{business.coverageArea || 'Lagos Nigeria Area'}</strong> | Gateway: <strong className="underline text-brand-600">{business.whatsappProvider} Mode</strong>
+            <p className="text-slate-500 text-[11px] font-bold mt-0.5">
+              📧 Username: <strong className="text-slate-800">{resellerUser ? (resellerUser.email_address || resellerUser.emailAddress || resellerUser.email) : 'johnnybgsu@gmail.com'}</strong>
+            </p>
+            <p className="text-slate-400 text-xs mt-1 font-medium">
+              📍 Area: <strong>{resellerUser ? (resellerUser.business_address || resellerUser.businessAddress) : (business.location || 'Lagos Nigeria Area')}</strong> | Gateway: <strong className="underline text-brand-600">{business.whatsappProvider || 'WhatsApp Sandbox'} Option</strong>
             </p>
           </div>
         </div>
