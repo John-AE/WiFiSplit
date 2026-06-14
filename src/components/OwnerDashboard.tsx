@@ -1533,10 +1533,11 @@ export default function OwnerDashboard({
                     </div>
                   </>
                 )}
-                
               </div>
             )}
           </div>
+        </div>
+      )}
 
       {/* ================= MODALS & DIALOG POPUPS ================= */}
 
@@ -1895,5 +1896,4 @@ export default function OwnerDashboard({
 
     </div>
   );
-}
 }
