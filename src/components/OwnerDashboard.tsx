@@ -120,6 +120,7 @@ export default function OwnerDashboard({
     planPrice: number;
     emailStatus: 'Pending' | 'Sent Successfully' | 'API Key Missing (Simulated)' | 'Failed';
   } | null>(null);
+  const emailStatus: 'Pending' | 'Sent Successfully' | 'API Key Missing (Simulated)' | 'Failed' = 'Pending';
 
   // Stats calculation
   const totalApprovalsNeeded = paymentRequests.filter((r) => r.status === 'Awaiting Approval').length;

@@ -103,6 +103,9 @@ export default function App() {
     status: 'checking',
     neonActive: false
   });
+  const [currentRole, setCurrentRole] = useState<'landing' | 'owner' | 'customer'>('landing');
+  const [currentSaaSTier, setCurrentSaaSTier] = useState<'starter' | 'growth' | 'business'>('starter');
+  const [announcement, setAnnouncement] = useState('');
 
   // DB Sync helper API calls
   const updateBusinessApi = async (updatedBiz: HotspotBusiness) => {
@@ -491,6 +494,9 @@ export default function App() {
                     onApprovePayment={handleApprovePayment}
                     onRejectPayment={handleRejectPayment}
                     saasPlans={SaaSPlans}
+                    currentSaaSTier={currentSaaSTier}
+                    onUpgradeSaaSTier={setCurrentSaaSTier}
+                    announcement={announcement}
                     triggerPrintView={handleTriggerPrintSlips}
                     onLogout={() => { setIsResellerAuthed(false); setResellerUser(null); }}
                   />

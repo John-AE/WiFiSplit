@@ -8,7 +8,6 @@ import {
 interface LandingPageProps {
   onEnterReseller: () => void;
   onEnterSubscriber: () => void;
-  onEnterSuperAdmin: () => void;
   activePlanLimits: {
     starter: string;
     growth: string;
@@ -19,7 +18,6 @@ interface LandingPageProps {
 export default function LandingPage({ 
   onEnterReseller, 
   onEnterSubscriber, 
-  onEnterSuperAdmin,
   activePlanLimits
 }: LandingPageProps) {
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
