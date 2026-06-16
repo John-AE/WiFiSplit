@@ -95,6 +95,7 @@ export default function App() {
   // Multi-state helper UI elements
   const [showWizard, setShowWizard] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showIntegrityGuide, setShowIntegrityGuide] = useState(false);
   const [vouchersToPrint, setVouchersToPrint] = useState<Voucher[]>([]);
   const [deviceMockupView, setDeviceMockupView] = useState(false);
   
@@ -406,6 +407,19 @@ export default function App() {
           {/* Preset trigger controls */}
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setShowIntegrityGuide(true)}
+              title="Deployment Integrity & Launch Guide"
+              className={`text-[10.5px] px-3 py-1.5 rounded-lg font-black flex items-center gap-1.5 border uppercase transition-all ${
+                dbStatusInfo.neonActive || dbStatusInfo.status === 'success'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              Integrity & Launch
+            </button>
+
+            <button
               onClick={() => setShowWizard(true)}
               className="text-[10px] bg-slate-800 border border-slate-700 hover:bg-slate-700/60 text-slate-200 font-bold px-3 py-1.5 rounded-lg smooth-transition"
             >
@@ -543,6 +557,110 @@ export default function App() {
           coverageArea={business.coverageArea}
           onClose={() => setShowPrintModal(false)}
         />
+      )}
+
+      {/* Production & Data Integrity Help Hub Overlay */}
+      {showIntegrityGuide && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in" id="integrity-modal">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 md:p-8 space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            
+            <div className="flex items-start justify-between gap-4 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-400 flex items-center justify-center border border-brand-500/30">
+                  <ShieldAlert className="w-5 h-5 text-brand-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm md:text-base font-black text-white uppercase tracking-tight">Production Launch & Data Integrity Hub</h3>
+                  <p className="text-[10.5px] text-slate-400">Understanding your deployment, hosting environments, and database persistence</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowIntegrityGuide(false)}
+                className="text-slate-400 hover:text-white font-mono text-sm bg-slate-800/50 hover:bg-slate-800 px-2 py-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-slate-300 text-xs md:text-sm leading-relaxed">
+              
+              {/* Box 1: Why you see console errors / offline warning */}
+              <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2">
+                <h4 className="font-extrabold text-[11px] md:text-xs uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-400" />
+                  Why do I see "API server unreachable / 404 / fallbacks" in the console?
+                </h4>
+                <p className="text-[11px] md:text-xs text-slate-300">
+                  You are currently accessing this application on a <strong>pure client-side static web hosting domain</strong> (such as <code className="text-amber-200">www.810555.xyz</code>). 
+                  Because static hosts only serve pre-rendered HTML/JS bundles and do not run a active background <strong>Node.js server process</strong>, any relative API fetches to <code className="text-amber-200">/api/*</code> 
+                  will return standard static host 404 response pages.
+                </p>
+                <p className="text-[11px] md:text-xs text-slate-400 font-medium bg-slate-950/40 p-2.5 rounded border border-slate-800">
+                  💡 <strong>No worries!</strong> The app includes built-in <strong>High-Integrity LocalStorage Database Mirroring</strong>. 
+                  If the server is unreachable, the frontend automatically transfers your sessions into your browser's local sandbox data registry. Any accounts, vouchers, 
+                  and internet plans you configure are kept safely in your active browser session!
+                </p>
+              </div>
+
+              {/* Box 2: How Data Integrity is handled in Full-stack mode */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+                <h4 className="font-extrabold text-[11px] md:text-xs uppercase tracking-wider text-white">
+                  🛡️ Multi-Tier Server Data Integrity Features
+                </h4>
+                <p className="text-[11px] md:text-xs text-slate-400">
+                  When deployed with its default backend service on a Node.js runtime, the application guarantees extreme transaction safety through the following technologies already built into your codebase:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                  <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-black text-brand-400 uppercase tracking-tight">1. Relational PostgreSQL Core</span>
+                    <p className="text-[9.5px] text-slate-400 leading-snug">
+                      Supports direct automated schema builds, unique multi-tenant indexing constraints, and serial auto-increment protection targeting Neon DB pools.
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-black text-brand-400 uppercase tracking-tight">2. db_sandbox.json Persistence</span>
+                    <p className="text-[9.5px] text-slate-400 leading-snug">
+                      A background JSON database engine that serializes memories securely into local file-system documents to survive cold-starts and system restarts.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Box 3: 3-Step Public Launch Instructions */}
+              <div className="space-y-2">
+                <h4 className="font-extrabold text-[11px] md:text-xs uppercase tracking-wider text-brand-400">
+                  🚀 Launching for Public & Commercial Use (3 Steps)
+                </h4>
+                <p className="text-[11px] md:text-xs text-slate-400">
+                  To launch this portal commercially supporting hundreds of concurrent customer devices with full data integration:
+                </p>
+                <ol className="list-decimal list-inside space-y-2 text-[11px] md:text-xs pl-2 text-slate-300">
+                  <li>
+                    <strong>Host as a Dynamic Web Application</strong>: Run the app using containers or Node.js on hosts that support continuous backend execution (e.g., <strong>Google Cloud Run</strong>, Render, Railway, Fly.io, or VPS). <em>Avoid deploying only built static folders (*dist/) to pure-static CDN hosting platforms.</em>
+                  </li>
+                  <li>
+                    <strong>Execute the Integrated Build Pipeline</strong>: Running <code className="bg-slate-950 px-1 py-0.5 rounded text-slate-300 border border-slate-800 text-[10.5px]">npm run build</code> compiles the Vite asset tree and bundles your Express <code className="text-indigo-300">server.ts</code> securely into a production-optimized CJS Node module in <code className="text-emerald-300">dist/server.cjs</code>.
+                  </li>
+                  <li>
+                    <strong>Connect Database Credentials</strong>: Inject your Postgres secrets through the <code className="text-brand-300">DATABASE_URL</code> environment variable. The backend automatically initializes SQL database schemas on deployment.
+                  </li>
+                </ol>
+              </div>
+
+            </div>
+
+            <div className="border-t border-slate-800 pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+              <span className="text-slate-500 font-mono text-[10px]">Current Status: {dbStatusInfo.neonActive ? '🟢 Connected Live Backend' : '🟡 Standalone Client Simulation'}</span>
+              <button 
+                onClick={() => setShowIntegrityGuide(false)}
+                className="bg-brand-500 text-slate-950 hover:bg-brand-400 font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wide cursor-pointer text-center"
+              >
+                Understood & Continue
+              </button>
+            </div>
+
+          </div>
+        </div>
       )}
 
       {/* Footer Credentials */}
