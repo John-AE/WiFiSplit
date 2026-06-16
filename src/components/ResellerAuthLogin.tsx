@@ -58,19 +58,37 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
         setError(data.error || 'Identity verification failed.');
       }
     } catch (err: any) {
-      console.warn('API error, executing client-side local fallback auth:', err);
+      console.warn('API error, executing client-side Firestore connection bypass:', err);
       try {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const { db } = await import('../firebase');
+        const cleanEmail = email.trim().toLowerCase();
+
+        const regDocRef = doc(db, 'reseller_registrations', cleanEmail);
+        const regDocSnap = await getDoc(regDocRef);
+        if (regDocSnap.exists()) {
+          const found = regDocSnap.data();
+          if (found.password === password) {
+            console.log(`👤 Reseller ${cleanEmail} authenticated successfully directly via Client-Side Cloud Firestore!`);
+            onSuccess(email.trim(), found);
+            return;
+          } else {
+            setError('Invalid credentials entered.');
+            return;
+          }
+        }
+        
+        // Local state fallback if not registered on cloud Firestore
         const listStr = localStorage.getItem('fallback_registrations') || '[]';
         const list = JSON.parse(listStr);
-        const cleanEmail = email.trim().toLowerCase();
-        const found = list.find((u: any) => u.email_address?.toLowerCase() === cleanEmail && u.password === password);
-        if (found) {
-          onSuccess(email.trim(), found);
+        const foundLocal = list.find((u: any) => u.email_address?.toLowerCase() === cleanEmail && u.password === password);
+        if (foundLocal) {
+          onSuccess(email.trim(), foundLocal);
         } else {
-          setError('Invalid administrator credentials. Register a new account first if running in Local fallback mode.');
+          setError('No account found under this email. Register a new administrator account below.');
         }
-      } catch (fallbackErr) {
-        setError(`Administrative connection failed: ${err.message}`);
+      } catch (fallbackErr: any) {
+        setError(`Database connection failed: ${fallbackErr.message || fallbackErr}`);
       }
     } finally {
       setLoading(false);
@@ -144,40 +162,68 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
         setError(data.error || 'Registration failed. Check parameters.');
       }
     } catch (err: any) {
-      console.warn('API register error, saving to local storage fallback database:', err);
+      console.warn('API register error, saving directly to Live Cloud Firestore Database:', err);
       try {
-        const listStr = localStorage.getItem('fallback_registrations') || '[]';
-        const list = JSON.parse(listStr);
+        const { doc, getDoc, setDoc } = await import('firebase/firestore');
+        const { db } = await import('../firebase');
         const cleanRegEmail = regEmail.trim().toLowerCase();
-        
-        const exists = list.some((u: any) => u.email_address?.toLowerCase() === cleanRegEmail);
-        if (exists) {
-          setError('An account with this email address already exists in fallback local storage.');
+
+        const regDocRef = doc(db, 'reseller_registrations', cleanRegEmail);
+        const regDocSnap = await getDoc(regDocRef);
+        if (regDocSnap.exists()) {
+          setError('An account with this email address already exists on Google Firestore cloud DB.');
           return;
         }
 
         const newReg = {
-          id: list.length + 1,
+          id: Date.now(),
           first_name: regFirstName.trim(),
           last_name: regLastName.trim(),
           business_name: regBusinessName.trim(),
           business_address: regBusinessAddress.trim(),
-          email_address: regEmail.trim(),
+          email_address: cleanRegEmail,
           whatsapp_number: regWhatsapp.trim(),
           password: regPassword,
           status: 'Active',
           created_at: new Date().toISOString()
         };
 
+        // Save straight to real Cloud Firestore reseller_registrations collection!
+        await setDoc(regDocRef, newReg);
+
+        // Also save initial profile so they instantly have editable settings synced to cloud
+        const profileDocRef = doc(db, 'reseller_profiles', cleanRegEmail);
+        await setDoc(profileDocRef, {
+          id: cleanRegEmail,
+          business_name: regBusinessName.trim() || 'My Hotspot Network',
+          text_logo: '📶',
+          logo_bg_color: '#3b82f6',
+          phone: regWhatsapp.trim() || '',
+          whatsapp_number: regWhatsapp.trim() || '',
+          location: regBusinessAddress.trim() || '',
+          currency: 'NGN',
+          timezone: 'Africa/Lagos',
+          router_type: 'Starlink',
+          coverage_area: regBusinessAddress.trim() || '',
+          bank_name: 'Access Bank',
+          bank_account_no: '0000000000',
+          bank_account_name: `${regFirstName.trim()} ${regLastName.trim()}`.trim(),
+          payment_instructions: 'Transfer to listed bank account, upload screenshot for automatic voucher code validation.'
+        });
+
+        // Maintain local storage record as local confirmation
+        const listStr = localStorage.getItem('fallback_registrations') || '[]';
+        const list = JSON.parse(listStr);
         list.push(newReg);
         localStorage.setItem('fallback_registrations', JSON.stringify(list));
 
-        setSuccessMsg('🎉 Account initialized successfully inside localized sandbox storage!');
+        setSuccessMsg('🎉 Account registered successfully directly inside Live Cloud Firestore!');
         setTimeout(() => {
           onSuccess(regEmail.trim(), newReg);
         }, 1200);
       } catch (fallbackErr: any) {
-        setError(`Database connection failed: ${err.message}`);
+        console.error('❌ Direct client-side Firestore registration failed:', fallbackErr);
+        setError(`Database connection failed: ${fallbackErr.message || fallbackErr}`);
       }
     } finally {
       setLoading(false);

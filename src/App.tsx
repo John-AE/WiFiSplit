@@ -19,6 +19,8 @@ import OwnerDashboard from './components/OwnerDashboard';
 import LandingPage from './components/LandingPage';
 import ResellerAuthLogin from './components/ResellerAuthLogin';
 import SubscriberAuthLogin from './components/SubscriberAuthLogin';
+import { db } from './firebase';
+import { doc, setDoc, getDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
 
 import { 
   Wifi, HelpCircle, Activity, LayoutGrid, Info, ArrowUpRight, 
@@ -108,76 +110,129 @@ export default function App() {
   const [currentSaaSTier, setCurrentSaaSTier] = useState<'starter' | 'growth' | 'business'>('starter');
   const [announcement, setAnnouncement] = useState('');
 
-  // DB Sync helper API calls
+  // DB Sync helper API calls with Client-Side Firestore Direct Sync Backup
   const updateBusinessApi = async (updatedBiz: HotspotBusiness) => {
     try {
-      await fetch('/api/business', {
+      const res = await fetch('/api/business', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedBiz),
       });
+      if (!res.ok) throw new Error('API update failed');
     } catch (e) {
-      console.warn('API update business failed:', e);
+      console.warn('API update business failed. Synchronizing directly to Firestore...', e);
+      try {
+        const emailValue = resellerUser?.email_address || 'biz_1';
+        await setDoc(doc(db, 'reseller_profiles', emailValue.trim().toLowerCase()), {
+          id: emailValue,
+          business_name: updatedBiz.businessName,
+          text_logo: updatedBiz.logoEmoji || '📶',
+          logo_bg_color: updatedBiz.logoBgColor || '#3b82f6',
+          phone: updatedBiz.phone || '',
+          whatsapp_number: updatedBiz.whatsapp || '',
+          location: updatedBiz.location || '',
+          currency: updatedBiz.currency || 'NGN',
+          timezone: updatedBiz.timezone || 'Africa/Lagos',
+          router_type: updatedBiz.routerType || 'Starlink',
+          coverage_area: updatedBiz.coverageArea || '',
+          bank_name: updatedBiz.bankName || 'Access Bank',
+          bank_account_no: updatedBiz.bankAccountNo || '0000000000',
+          bank_account_name: updatedBiz.bankAccountName || '',
+          payment_instructions: updatedBiz.paymentInstructions || ''
+        });
+      } catch (fErr) {
+        console.error('❌ Direct profile write to Firestore failed:', fErr);
+      }
     }
   };
 
   const savePlanApi = async (p: HotspotPlan) => {
     try {
-      await fetch('/api/plans', {
+      const res = await fetch('/api/plans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(p),
       });
+      if (!res.ok) throw new Error('API save plan failed');
     } catch (e) {
-      console.warn('API save plan failed:', e);
+      console.warn('API save plan failed. Saved locally. Direct Firestore sync active...', e);
+      try {
+        await setDoc(doc(db, 'plans', p.id), p);
+      } catch (fErr) {
+        console.error('❌ Direct plan write to Firestore failed:', fErr);
+      }
     }
   };
 
   const deletePlanApi = async (id: string) => {
     try {
-      await fetch(`/api/plans/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/plans/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('API delete plan failed');
     } catch (e) {
       console.warn('API delete plan failed:', e);
+      try {
+        await deleteDoc(doc(db, 'plans', id));
+      } catch (fErr) {
+        console.error('❌ Direct plan delete from Firestore failed:', fErr);
+      }
     }
   };
 
   const saveCustomerApi = async (c: Customer) => {
     try {
-      await fetch('/api/customers', {
+      const res = await fetch('/api/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(c),
       });
+      if (!res.ok) throw new Error('API save customer failed');
     } catch (e) {
       console.warn('API save customer failed:', e);
+      try {
+        await setDoc(doc(db, 'customers', c.id), c);
+      } catch (fErr) {
+        console.error('❌ Direct customer write to Firestore failed:', fErr);
+      }
     }
   };
 
   const submitPaymentRequestApi = async (pay: PaymentRequest) => {
     try {
-      await fetch('/api/payments', {
+      const res = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pay),
       });
+      if (!res.ok) throw new Error('API submit payment failed');
     } catch (e) {
       console.warn('API submit payment failed:', e);
+      try {
+        await setDoc(doc(db, 'payments', pay.id), pay);
+      } catch (fErr) {
+        console.error('❌ Direct payment write to Firestore failed:', fErr);
+      }
     }
   };
 
   const saveVoucherApi = async (vch: Voucher) => {
     try {
-      await fetch('/api/vouchers', {
+      const res = await fetch('/api/vouchers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(vch),
       });
+      if (!res.ok) throw new Error('API save voucher failed');
     } catch (e) {
       console.warn('API save voucher failed:', e);
+      try {
+        await setDoc(doc(db, 'vouchers', vch.code), vch);
+      } catch (fErr) {
+        console.error('❌ Direct voucher write to Firestore failed:', fErr);
+      }
     }
   };
 
-  // Synchronise state on load from Cloud DB if accessible
+  // Synchronise state on load from Cloud DB if accessible (Server API or direct client Firestore)
   useEffect(() => {
     async function loadAllDbData() {
       try {
@@ -217,8 +272,61 @@ export default function App() {
           console.log('⚡ All components initialized from active online secure database collections.');
         }
       } catch (err) {
-        console.warn('⚠️ API server unreachable. Running in stand-alone local localStorage simulation backup modes:', err);
-        setDbStatusInfo({ status: 'simulation_standalone', neonActive: false });
+        console.warn('⚠️ API server unreachable, reading directly from Firebase Firestore Cloud DB bypass:', err);
+        setDbStatusInfo({ status: 'connected', provider: 'Google Cloud Firestore', neonActive: false, firebaseActive: true });
+        
+        try {
+          const emailValue = resellerUser?.email_address;
+          if (emailValue) {
+            const cleanEmail = emailValue.trim().toLowerCase();
+            
+            // 1. Load business profile / settings
+            const bizDoc = await getDoc(doc(db, 'reseller_profiles', cleanEmail));
+            if (bizDoc.exists()) {
+              const bData = bizDoc.data();
+              setBusiness({
+                id: cleanEmail,
+                businessName: bData.business_name || 'My Hotspot Network',
+                logoEmoji: bData.text_logo || '📶',
+                logoBgColor: bData.logo_bg_color || '#3b82f6',
+                phone: bData.phone || '',
+                whatsapp: bData.whatsapp_number || bData.phone || '',
+                location: bData.location || '',
+                currency: bData.currency || 'NGN',
+                timezone: bData.timezone || 'Africa/Lagos',
+                routerType: bData.router_type || 'Starlink',
+                mikrotikIntegrationPlaceholder: false,
+                coverageArea: bData.coverage_area || '',
+                bankName: bData.bank_name || 'Access Bank',
+                bankAccountNo: bData.bank_account_no || '',
+                bankAccountName: bData.bank_account_name || '',
+                paymentInstructions: bData.payment_instructions || ''
+              });
+            }
+            
+            // 2. Load Plans
+            const plansSnap = await getDocs(collection(db, 'plans'));
+            const plansList = plansSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (plansList.length > 0) setPlans(plansList as any);
+            
+            // 3. Load Vouchers
+            const vSnap = await getDocs(collection(db, 'vouchers'));
+            const vList = vSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (vList.length > 0) setVouchers(vList as any);
+            
+            // 4. Load Customers
+            const cSnap = await getDocs(collection(db, 'customers'));
+            const cList = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (cList.length > 0) setCustomers(cList as any);
+            
+            // 5. Load Payments
+            const pSnap = await getDocs(collection(db, 'payments'));
+            const pList = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (pList.length > 0) setPaymentRequests(pList as any);
+          }
+        } catch (firebaseErr: any) {
+          console.error('❌ Direct Client Firebase connection failed:', firebaseErr);
+        }
       }
     }
     loadAllDbData();
