@@ -352,8 +352,12 @@ export default function App() {
                     Neon Live (Pooler)
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8.5px] font-mono font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30 uppercase">
-                    Sandbox Offline cache
+                  <span 
+                    className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md text-[8.5px] font-mono font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 uppercase cursor-help select-none"
+                    title="No external database connected. Utilizing browser-side local database so you can test features perfectly and independently."
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                    Local Sandbox Storage
                   </span>
                 )}
               </div>
