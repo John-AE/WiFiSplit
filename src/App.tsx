@@ -188,7 +188,7 @@ export default function App() {
         const statusData = await statusRes.json();
         setDbStatusInfo(statusData);
 
-        if (statusData.neonActive) {
+        if (statusData.neonActive || statusData.firebaseActive) {
           const safeFetchJson = async (url: string) => {
             const r = await fetch(url);
             const rct = r.headers.get('content-type');
@@ -198,8 +198,10 @@ export default function App() {
             return r.json();
           };
 
+          const emailParam = resellerUser?.email_address ? `?email=${encodeURIComponent(resellerUser.email_address)}` : '';
+
           const [bizRes, planRes, vchRes, custRes, payRes] = await Promise.all([
-            safeFetchJson('/api/business'),
+            safeFetchJson(`/api/business${emailParam}`),
             safeFetchJson('/api/plans'),
             safeFetchJson('/api/vouchers'),
             safeFetchJson('/api/customers'),
@@ -211,7 +213,7 @@ export default function App() {
           if (vchRes && Array.isArray(vchRes)) setVouchers(vchRes);
           if (custRes && Array.isArray(custRes)) setCustomers(custRes);
           if (payRes && Array.isArray(payRes)) setPaymentRequests(payRes);
-          console.log('⚡ All components initialized from Neon Postgres secure schemas.');
+          console.log('⚡ All components initialized from active online secure database collections.');
         }
       } catch (err) {
         console.warn('⚠️ API server unreachable. Running in stand-alone local localStorage simulation backup modes:', err);
@@ -219,7 +221,7 @@ export default function App() {
       }
     }
     loadAllDbData();
-  }, []);
+  }, [resellerUser?.email_address]);
 
   // 3. Save states locally on trigger
   useEffect(() => {

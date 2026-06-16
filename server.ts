@@ -458,6 +458,58 @@ let fallbackMessageLogs = [
 let fallbackAnnouncement = '📢 ANNOUNCEMENT: Starlink latency optimization scheduled for all West-African nodes on June 15, expected to shave ping down by an average of 10ms!';
 let fallbackSaaSTier = 'growth';
 
+import fs from 'fs';
+
+const SANDBOX_FILE_PATH = path.join(process.cwd(), 'db_sandbox.json');
+
+function saveSandboxData() {
+  try {
+    const payload = {
+      fallbackRegistrations,
+      fallbackBusiness,
+      fallbackPlans,
+      fallbackVouchers,
+      fallbackPayments,
+      fallbackCustomers,
+      fallbackSessions,
+      fallbackMessageLogs,
+      fallbackAnnouncement,
+      fallbackSaaSTier
+    };
+    fs.writeFileSync(SANDBOX_FILE_PATH, JSON.stringify(payload, null, 2), 'utf8');
+    console.log('💾 Server persistent database synchronized successfully: db_sandbox.json');
+  } catch (err: any) {
+    console.error('❌ Failed saving sandbox registry file:', err.message);
+  }
+}
+
+function loadSandboxData() {
+  try {
+    if (fs.existsSync(SANDBOX_FILE_PATH)) {
+      const content = fs.readFileSync(SANDBOX_FILE_PATH, 'utf8');
+      const data = JSON.parse(content);
+      if (data.fallbackRegistrations) fallbackRegistrations = data.fallbackRegistrations;
+      if (data.fallbackBusiness) fallbackBusiness = data.fallbackBusiness;
+      if (data.fallbackPlans) fallbackPlans = data.fallbackPlans;
+      if (data.fallbackVouchers) fallbackVouchers = data.fallbackVouchers;
+      if (data.fallbackPayments) fallbackPayments = data.fallbackPayments;
+      if (data.fallbackCustomers) fallbackCustomers = data.fallbackCustomers;
+      if (data.fallbackSessions) fallbackSessions = data.fallbackSessions;
+      if (data.fallbackMessageLogs) fallbackMessageLogs = data.fallbackMessageLogs;
+      if (data.fallbackAnnouncement) fallbackAnnouncement = data.fallbackAnnouncement;
+      if (data.fallbackSaaSTier) fallbackSaaSTier = data.fallbackSaaSTier;
+      console.log(`📂 Server restored state successfully from persistent db_sandbox.json! (${fallbackRegistrations.length} registrations loaded)`);
+    } else {
+      saveSandboxData();
+    }
+  } catch (err: any) {
+    console.error('❌ Failed loading sandbox registry file:', err.message);
+  }
+}
+
+// Perform historical state load
+loadSandboxData();
+
 // Firebase Database Schema Initialization & Seeding on Startup
 async function initializeFirebaseCollections() {
   try {
@@ -672,6 +724,8 @@ app.get('/api/db-status', (req, res) => {
     error: neonActive ? '' : (neonErrorMsg || dbErrorMsg),
     neonActive: neonActive,
     firebaseActive: dbStatus === 'connected',
+    firebaseStatus: dbStatus,
+    firebaseError: dbErrorMsg,
     provider: neonActive ? 'Neon Serverless PostgreSQL Database' : 'Google Firebase Firestore (Spark / Free Tier Plan)'
   });
 });
@@ -683,6 +737,8 @@ app.post('/api/reseller/register', async (req, res) => {
   if (!emailAddress || !password) {
     return res.status(400).json({ error: 'Email and password are required.' });
   }
+
+  const cleanEmail = emailAddress.trim().toLowerCase();
 
   if (neonActive && pgPool) {
     try {
@@ -701,26 +757,101 @@ app.post('/api/reseller/register', async (req, res) => {
       return res.status(500).json({ error: `Neon SQL database error: ${err.message}` });
     }
   } else {
-    // In-memory local fallback registration
-    const exists = fallbackRegistrations.some(r => r.email_address?.toLowerCase() === emailAddress.toLowerCase());
-    if (exists) {
-      return res.status(400).json({ error: 'An account with this email address already exists in fallback cache.' });
+    // Durable Firebase Firestore Registration Fallback
+    try {
+      const regDocRef = doc(db, 'reseller_registrations', cleanEmail);
+      const regDocSnap = await getDoc(regDocRef);
+      if (regDocSnap.exists()) {
+        return res.status(400).json({ error: 'An account with this email address already exists in the Firestore database.' });
+      }
+      
+      const newReg = {
+        id: Date.now(),
+        first_name: firstName || '',
+        last_name: lastName || '',
+        business_name: businessName || '',
+        business_address: businessAddress || '',
+        email_address: cleanEmail,
+        whatsapp_number: whatsappNumber || '',
+        password: password,
+        status: 'Active',
+        created_at: new Date().toISOString()
+      };
+      
+      await setDoc(regDocRef, newReg);
+      
+      // Also write an active profile to reseller_profiles collection so they instantly have editable settings in the dashboard
+      const profileDocRef = doc(db, 'reseller_profiles', cleanEmail);
+      await setDoc(profileDocRef, {
+        id: cleanEmail,
+        business_name: businessName || 'My Hotspot Network',
+        logo_emoji: '📶',
+        logo_bg_color: '#3b82f6',
+        phone: whatsappNumber || '',
+        whatsapp_number: whatsappNumber || '',
+        location: businessAddress || '',
+        currency: 'NGN',
+        timezone: 'Africa/Lagos',
+        router_type: 'Starlink',
+        coverage_area: businessAddress || '',
+        bank_name: 'Access Bank',
+        bank_account_no: '0000000000',
+        bank_account_name: `${firstName || ''} ${lastName || ''}`.trim(),
+        payment_instructions: 'Transfer to listed bank account, upload screenshot for automatic voucher code validation.'
+      });
+
+      console.log(`🎉 Reseller ${cleanEmail} registered successfully in Cloud Firestore!`);
+      return res.json({ success: true, user: newReg });
+    } catch (err: any) {
+      console.warn('⚠️ Cloud Firestore write bypass active, storing securely in server-side persistent database db_sandbox.json:', err.message);
+      
+      const exists = fallbackRegistrations.some(u => u.email_address?.toLowerCase() === cleanEmail);
+      if (exists) {
+        return res.status(400).json({ error: 'An account with this email address already exists in our database.' });
+      }
+
+      const newReg = {
+        id: Date.now(),
+        first_name: firstName || '',
+        last_name: lastName || '',
+        business_name: businessName || '',
+        business_address: businessAddress || '',
+        email_address: cleanEmail,
+        whatsapp_number: whatsappNumber || '',
+        password: password,
+        status: 'Active',
+        created_at: new Date().toISOString()
+      };
+
+      fallbackRegistrations.push(newReg);
+      
+      // Also write an active profile so their settings are persistent and modular in db_sandbox.json!
+      fallbackBusiness = {
+        id: cleanEmail,
+        businessName: businessName || 'My Hotspot Network',
+        logoEmoji: '📶',
+        logoBgColor: '#3b82f6',
+        phone: whatsappNumber || '',
+        whatsapp: whatsappNumber || '',
+        location: businessAddress || '',
+        currency: 'NGN',
+        timezone: 'Africa/Lagos',
+        routerType: 'Starlink',
+        mikrotikIntegrationPlaceholder: false,
+        coverageArea: businessAddress || '',
+        bankName: 'Access Bank',
+        bankAccountNo: '0000000000',
+        bankAccountName: `${firstName || ''} ${lastName || ''}`.trim(),
+        paymentInstructions: 'Transfer to listed bank account, upload screenshot for automatic voucher code validation.',
+        whatsappProvider: 'Meta Cloud API',
+        whatsappApiKey: 'w_key_live_da984572h189ad98cf650b91e',
+        emailAlertsEnabled: true,
+        adminAlertEmail: cleanEmail
+      };
+
+      saveSandboxData();
+      return res.json({ success: true, user: newReg });
     }
-    const newReg = {
-      id: fallbackRegistrations.length + 1,
-      first_name: firstName,
-      last_name: lastName,
-      business_name: businessName,
-      business_address: businessAddress,
-      email_address: emailAddress,
-      whatsapp_number: whatsappNumber,
-      password: password,
-      status: 'Pending',
-      created_at: new Date()
-    };
-    fallbackRegistrations.push(newReg);
-    console.log(`🎉 Reseller ${emailAddress} registered successfully in offline sandbox caching!`);
-    return res.json({ success: true, user: newReg });
   }
 });
 
@@ -751,7 +882,22 @@ app.post('/api/reseller/login', async (req, res) => {
       return res.status(500).json({ error: `Neon SQL database login error: ${err.message}` });
     }
   } else {
-    // Check local fallback registrations
+    // Check durable Firebase Firestore registrations fallback
+    try {
+      const regDocRef = doc(db, 'reseller_registrations', cleanEmail);
+      const regDocSnap = await getDoc(regDocRef);
+      if (regDocSnap.exists()) {
+        const found = regDocSnap.data();
+        if (found.password === password) {
+          console.log(`👤 Reseller authenticated successfully via Cloud Firestore: ${cleanEmail}`);
+          return res.json({ success: true, user: found });
+        }
+      }
+    } catch (err: any) {
+      console.error('❌ Firestore Login fallback query failed:', err.message);
+    }
+    
+    // In-memory fallback check
     const found = fallbackRegistrations.find(
       r => r.email_address?.toLowerCase() === cleanEmail && r.password === password
     );
@@ -764,14 +910,72 @@ app.post('/api/reseller/login', async (req, res) => {
   return res.status(401).json({ error: 'Unauthorized Reseller. Check credentials or register first.' });
 });
 
+// LIST REGISTERED RESELLERS SECURE MONITORING
+app.get('/api/resellers', async (req, res) => {
+  if (neonActive && pgPool) {
+    try {
+      const result = await pgPool.query(`SELECT id, first_name AS "first_name", last_name AS "last_name", business_name AS "business_name", business_address AS "business_address", email_address AS "email_address", whatsapp_number AS "whatsapp_number", status, created_at AS "created_at" FROM reseller_registrations ORDER BY id DESC`);
+      return res.json(result.rows);
+    } catch (err: any) {
+      return res.status(500).json({ error: `Neon Postgres error: ${err.message}` });
+    }
+  } else if (dbStatus === 'connected') {
+    try {
+      const colRef = collection(db, 'reseller_registrations');
+      const snapshot = await getDocs(colRef);
+      const list: any[] = [];
+      snapshot.forEach(docSnap => {
+        list.push(docSnap.data());
+      });
+      return res.json(list);
+    } catch (err: any) {
+      return res.status(500).json({ error: `Firestore error: ${err.message}` });
+    }
+  } else {
+    return res.json(fallbackRegistrations);
+  }
+});
+
 // RESELLER BUSINESS PROFILE
 app.get('/api/business', async (req, res) => {
+  const resellerEmail = (req.query.email as string || '').trim().toLowerCase();
   if (dbStatus === 'connected') {
     try {
+      if (resellerEmail) {
+        const docRef = doc(db, 'reseller_profiles', resellerEmail);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const row = docSnap.data();
+          return res.json({
+            id: row.id || docSnap.id,
+            businessName: row.business_name || row.businessName,
+            logoEmoji: row.logo_emoji || row.logoEmoji || '📶',
+            logoBgColor: row.logo_bg_color || row.logoBgColor || '#3b82f6',
+            phone: row.phone,
+            whatsapp: row.whatsapp_number || row.whatsapp,
+            location: row.location || '',
+            currency: row.currency || 'NGN',
+            timezone: row.timezone || 'Africa/Lagos',
+            routerType: row.router_type || row.routerType || 'Starlink',
+            coverageArea: row.coverage_area || row.coverageArea || '',
+            bankName: row.bank_name || row.bankName || '',
+            bankAccountNo: row.bank_account_no || row.bankAccountNo || '',
+            bankAccountName: row.bank_account_name || row.bankAccountName || '',
+            paymentInstructions: row.payment_instructions || row.paymentInstructions || '',
+            whatsappProvider: row.whatsapp_provider || row.whatsappProvider || 'Meta Cloud API',
+            whatsappApiKey: row.whatsapp_api_key || row.whatsappApiKey || '',
+            emailAlertsEnabled: row.email_alerts_enabled !== undefined ? row.email_alerts_enabled : true,
+            adminAlertEmail: row.admin_alert_email || row.adminAlertEmail || resellerEmail
+          });
+        }
+      }
+
       const colRef = collection(db, 'reseller_profiles');
       const snapshot = await getDocs(colRef);
       if (snapshot.size > 0) {
-        const docSnap = snapshot.docs[0];
+        const docSnap = resellerEmail 
+          ? (snapshot.docs.find(d => d.id === resellerEmail) || snapshot.docs[0])
+          : snapshot.docs[0];
         const row = docSnap.data();
         return res.json({
           id: row.id || docSnap.id,
@@ -792,7 +996,7 @@ app.get('/api/business', async (req, res) => {
           whatsappProvider: row.whatsapp_provider || row.whatsappProvider || 'Meta Cloud API',
           whatsappApiKey: row.whatsapp_api_key || row.whatsappApiKey || '',
           emailAlertsEnabled: row.email_alerts_enabled !== undefined ? row.email_alerts_enabled : true,
-          adminAlertEmail: row.admin_alert_email || row.adminAlertEmail || 'johnnybgsu@gmail.com'
+          adminAlertEmail: row.admin_alert_email || row.adminAlertEmail || resellerEmail || 'johnnybgsu@gmail.com'
         });
       }
     } catch (err) {
@@ -893,6 +1097,7 @@ app.post('/api/plans', async (req, res) => {
       } else {
         fallbackPlans.unshift(p);
       }
+      saveSandboxData();
       return res.json({ success: true, plan: p });
     } catch (err) {
       console.error('Firebase plan save failed:', err);
@@ -904,6 +1109,7 @@ app.post('/api/plans', async (req, res) => {
   } else {
     fallbackPlans.unshift(p);
   }
+  saveSandboxData();
   res.json({ success: true, plan: p });
 });
 
@@ -913,12 +1119,14 @@ app.delete('/api/plans/:id', async (req, res) => {
     try {
       await deleteDoc(doc(db, 'internet_plans', id));
       fallbackPlans = fallbackPlans.filter((p) => p.id !== id);
+      saveSandboxData();
       return res.json({ success: true });
     } catch (err) {
       console.error('Firebase plan delete error:', err);
     }
   }
   fallbackPlans = fallbackPlans.filter((p) => p.id !== id);
+  saveSandboxData();
   res.json({ success: true });
 });
 
