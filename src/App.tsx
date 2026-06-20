@@ -157,7 +157,7 @@ export default function App() {
     } catch (e) {
       console.warn('API save plan failed. Saved locally. Direct Firestore sync active...', e);
       try {
-        await setDoc(doc(db, 'plans', p.id), p);
+        await setDoc(doc(db, 'internet_plans', p.id), p);
       } catch (fErr) {
         console.error('❌ Direct plan write to Firestore failed:', fErr);
       }
@@ -171,7 +171,7 @@ export default function App() {
     } catch (e) {
       console.warn('API delete plan failed:', e);
       try {
-        await deleteDoc(doc(db, 'plans', id));
+        await deleteDoc(doc(db, 'internet_plans', id));
       } catch (fErr) {
         console.error('❌ Direct plan delete from Firestore failed:', fErr);
       }
@@ -207,7 +207,7 @@ export default function App() {
     } catch (e) {
       console.warn('API submit payment failed:', e);
       try {
-        await setDoc(doc(db, 'payments', pay.id), pay);
+        await setDoc(doc(db, 'payment_requests', pay.id), pay);
       } catch (fErr) {
         console.error('❌ Direct payment write to Firestore failed:', fErr);
       }
@@ -225,7 +225,7 @@ export default function App() {
     } catch (e) {
       console.warn('API save voucher failed:', e);
       try {
-        await setDoc(doc(db, 'vouchers', vch.code), vch);
+        await setDoc(doc(db, 'active_vouchers', vch.code), vch);
       } catch (fErr) {
         console.error('❌ Direct voucher write to Firestore failed:', fErr);
       }
@@ -594,9 +594,8 @@ export default function App() {
                         setBusiness(prev => ({
                           ...prev,
                           businessName: user.business_name || user.businessName || prev.businessName,
-                          phone: user.whatsapp_number || user.whatsappNumber || prev.phone,
-                          whatsapp: user.whatsapp_number || user.whatsappNumber || prev.whatsapp,
-                          location: user.business_address || user.businessAddress || prev.locationOpen || prev.location,
+                          phone:                           user.whatsapp_number || user.whatsappNumber || prev.whatsapp,
+                          location: user.business_address || user.businessAddress || prev.location,
                         }));
                       }
                     }} 

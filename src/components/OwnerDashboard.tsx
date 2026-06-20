@@ -126,19 +126,25 @@ export default function OwnerDashboard({
   const totalApprovalsNeeded = paymentRequests.filter((r) => r.status === 'Awaiting Approval').length;
   
   // Calculate revenue parameters
+  const todayStr = new Date().toISOString().split('T')[0];
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().split('T')[0];
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().split('T')[0];
+
   const revenueToday = vouchers
-    .filter(v => ['active', 'used'].includes(v.status) && v.dateCreated.startsWith('2026-06-12'))
+    .filter(v => ['active', 'used'].includes(v.status) && v.dateCreated.startsWith(todayStr))
     .reduce((sum, v) => sum + v.planPrice, 0);
 
   const revenueWeekly = vouchers
-    .filter(v => ['active', 'used'].includes(v.status))
-    .reduce((sum, v) => sum + v.planPrice, 0) + 12000; // added pre-existing history weights
+    .filter(v => ['active', 'used'].includes(v.status) && v.dateCreated >= sevenDaysAgo)
+    .reduce((sum, v) => sum + v.planPrice, 0);
 
-  const revenueMonthly = revenueWeekly + 420000;
+  const revenueMonthly = vouchers
+    .filter(v => ['active', 'used'].includes(v.status) && v.dateCreated >= thirtyDaysAgo)
+    .reduce((sum, v) => sum + v.planPrice, 0);
 
   const activeVouchersTodayCount = vouchers.filter((v) => v.status === 'active').length;
   const expiredVouchersTodayCount = vouchers.filter((v) => v.status === 'expired').length;
-  const totalVouchersSoldToday = vouchers.filter((v) => v.dateCreated.startsWith('2026-06-12')).length;
+  const totalVouchersSoldToday = vouchers.filter((v) => v.dateCreated.startsWith(todayStr)).length;
 
   // Most Popular Plan finder
   const planCounts: { [key: string]: number } = {};

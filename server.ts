@@ -86,7 +86,7 @@ initializePostgres();
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 
-let dbStatus = 'disconnected';
+const WHATSAPP_API_KEY = process.env.WHATSAPP_API_KEY || 'w_key_live_da984572h189ad98cf650b91e';
 let dbErrorMsg = '';
 
 // In-Memory Backup collections if Database connection is offline or failed
@@ -108,7 +108,7 @@ let fallbackBusiness = {
   bankAccountName: 'Yaba Wireless Links',
   paymentInstructions: 'Transfer exact amount to our Opay account. Specify transaction ref. Vouchers auto-generate post manual confirmation!',
   whatsappProvider: 'Meta Cloud API',
-  whatsappApiKey: 'w_key_live_da984572h189ad98cf650b91e',
+  whatsappApiKey: WHATSAPP_API_KEY,
   emailAlertsEnabled: true,
   adminAlertEmail: 'johnnybgsu@gmail.com'
 };
@@ -827,30 +827,19 @@ app.post('/api/reseller/register', async (req, res) => {
       };
 
       fallbackRegistrations.push(newReg);
-      
-      // Also write an active profile so their settings are persistent and modular in db_sandbox.json!
-      fallbackBusiness = {
-        id: cleanEmail,
-        businessName: businessName || 'My Hotspot Network',
-        logoEmoji: '📶',
-        logoBgColor: '#3b82f6',
-        phone: whatsappNumber || '',
-        whatsapp: whatsappNumber || '',
-        location: businessAddress || '',
-        currency: 'NGN',
-        timezone: 'Africa/Lagos',
-        routerType: 'Starlink',
-        mikrotikIntegrationPlaceholder: false,
-        coverageArea: businessAddress || '',
-        bankName: 'Access Bank',
-        bankAccountNo: '0000000000',
-        bankAccountName: `${firstName || ''} ${lastName || ''}`.trim(),
-        paymentInstructions: 'Transfer to listed bank account, upload screenshot for automatic voucher code validation.',
-        whatsappProvider: 'Meta Cloud API',
-        whatsappApiKey: 'w_key_live_da984572h189ad98cf650b91e',
-        emailAlertsEnabled: true,
-        adminAlertEmail: cleanEmail
-      };
+
+      if (fallbackBusiness.id === 'biz_1') {
+        fallbackBusiness = {
+          ...fallbackBusiness,
+          id: cleanEmail,
+          businessName: businessName || fallbackBusiness.businessName,
+          phone: whatsappNumber || fallbackBusiness.phone,
+          whatsapp: whatsappNumber || fallbackBusiness.whatsapp,
+          location: businessAddress || fallbackBusiness.location,
+          bankAccountName: `${firstName || ''} ${lastName || ''}`.trim() || fallbackBusiness.bankAccountName,
+          adminAlertEmail: cleanEmail
+        };
+      }
 
       saveSandboxData();
       return res.json({ success: true, user: newReg });
@@ -1183,12 +1172,14 @@ app.post('/api/payments', async (req, res) => {
         whatsapp_delivered: p.whatsappDelivered || false
       });
       fallbackPayments.unshift(p);
+      saveSandboxData();
       return res.json({ success: true, payment: p });
     } catch (err) {
       console.error('Firebase payment submit error:', err);
     }
   }
   fallbackPayments.unshift(p);
+  saveSandboxData();
   res.json({ success: true, payment: p });
 });
 
@@ -1278,6 +1269,7 @@ app.post('/api/payments/approve', async (req, res) => {
         joined_date: joinedDate
       });
 
+      saveSandboxData();
       return res.json({ success: true });
     } catch (err) {
       console.error('Firebase approve payment exception:', err);
@@ -1341,6 +1333,7 @@ app.post('/api/payments/reject', async (req, res) => {
   if (dbStatus === 'connected') {
     try {
       await updateDoc(doc(db, 'payment_requests', id), { status: 'Rejected' });
+      saveSandboxData();
       return res.json({ success: true });
     } catch (err) {
       console.error('Firebase payment reject failed:', err);
@@ -1350,6 +1343,7 @@ app.post('/api/payments/reject', async (req, res) => {
   if (idx > -1) {
     fallbackPayments[idx].status = 'Rejected';
   }
+  saveSandboxData();
   res.json({ success: true });
 });
 
@@ -1429,6 +1423,7 @@ app.post('/api/vouchers', async (req, res) => {
   } else {
     fallbackVouchers.unshift(v);
   }
+  saveSandboxData();
   res.json({ success: true, voucher: v });
 });
 
@@ -1489,6 +1484,7 @@ app.post('/api/customers', async (req, res) => {
       } else {
         fallbackCustomers.unshift(c);
       }
+      saveSandboxData();
       return res.json({ success: true, customer: c });
     } catch (err) {
       console.error('Firebase save customer error:', err);
@@ -1500,6 +1496,7 @@ app.post('/api/customers', async (req, res) => {
   } else {
     fallbackCustomers.unshift(c);
   }
+  saveSandboxData();
   res.json({ success: true, customer: c });
 });
 

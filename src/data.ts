@@ -90,7 +90,7 @@ export const DefaultBusiness: HotspotBusiness = {
   bankAccountName: 'Yaba Wireless Links',
   paymentInstructions: 'Transfer exact amount to our Opay account. Specify transaction ref. Vouchers auto-generate post manual confirmation!',
   whatsappProvider: 'Meta Cloud API',
-  whatsappApiKey: 'w_key_live_da984572h189ad98cf650b91e',
+  whatsappApiKey: '',
   emailAlertsEnabled: true,
   adminAlertEmail: 'johnnybgsu@gmail.com'
 };
