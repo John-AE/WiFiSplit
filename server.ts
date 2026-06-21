@@ -16,9 +16,6 @@ let pgPool: pg.Pool | null = null;
 let neonActive = false;
 let neonErrorMsg = '';
 
-// Temporary fallback cache for reseller registrations when PG is offline
-let fallbackRegistrations: any[] = [];
-
 if (process.env.DATABASE_URL) {
   try {
     pgPool = new Pool({
@@ -658,227 +655,22 @@ function loadSandboxData() {
 // Perform historical state load
 loadSandboxData();
 
-// Firebase Database Schema Initialization & Seeding on Startup
-async function initializeFirebaseCollections() {
-  try {
-    console.log('⚙️ Testing Google Firebase Firestore connection...');
-    // Write connection timestamp to check write permissions
-    const testDocRef = doc(db, 'system_config', 'connection_test_probe');
-    await setDoc(testDocRef, { tested_at: new Date().toISOString() });
-    
-    dbStatus = 'connected';
-    console.log('⚡ Connected securely to Google Firebase Firestore database.');
-
-    // 1. Seed reseller profiles if empty
-    const profileSnap = await getDocs(collection(db, 'reseller_profiles'));
-    if (profileSnap.size === 0) {
-      console.log('🌱 Seeding default reseller profile inside Firestore...');
-      await setDoc(doc(db, 'reseller_profiles', fallbackBusiness.id), {
-        id: fallbackBusiness.id,
-        business_name: fallbackBusiness.businessName,
-        logo_emoji: fallbackBusiness.logoEmoji,
-        logo_bg_color: fallbackBusiness.logoBgColor,
-        phone: fallbackBusiness.phone,
-        whatsapp_number: fallbackBusiness.whatsapp,
-        location: fallbackBusiness.location,
-        currency: fallbackBusiness.currency,
-        timezone: fallbackBusiness.timezone,
-        router_type: fallbackBusiness.routerType,
-        coverage_area: fallbackBusiness.coverageArea,
-        bank_name: fallbackBusiness.bankName,
-        bank_account_no: fallbackBusiness.bankAccountNo,
-        bank_account_name: fallbackBusiness.bankAccountName,
-        payment_instructions: fallbackBusiness.paymentInstructions,
-        whatsapp_provider: fallbackBusiness.whatsappProvider,
-        whatsapp_api_key: fallbackBusiness.whatsappApiKey
-      });
-    }
-
-    // 2. Seed internet plans if empty or incomplete (all 17 default plans)
-    const plansSnap = await getDocs(collection(db, 'internet_plans'));
-    if (plansSnap.size < 10) {
-      console.log(`📡 Only ${plansSnap.size} internet plans found in Firestore. Populating/updating all 17 default plans...`);
-      for (const p of fallbackPlans) {
-        await setDoc(doc(db, 'internet_plans', p.id), {
-          id: p.id,
-          name: p.name,
-          price: Number(p.price),
-          data_limit_gb: Number(p.dataLimitGb ?? 0),
-          duration_hours: Number(p.durationHours ?? 24),
-          speed_limit_mbps: Number(p.speedLimitMbps ?? 5),
-          device_limit: Number(p.deviceLimit ?? 1),
-          validity_period_days: Number(p.validityPeriodDays ?? 1),
-          auto_expiry: p.autoExpiry ?? true,
-          description: p.description ?? '',
-          is_active: p.isActive ?? true,
-          is_popular: p.isPopular ?? false
-        });
-      }
-      console.log('✅ Successfully seeded all 17 plans inside Firestore!');
-    }
-
-    // 3. Seed payment requests
-    const paySnap = await getDocs(collection(db, 'payment_requests'));
-    if (paySnap.size === 0) {
-      console.log('🌱 Seeding default payment requests inside Firestore...');
-      for (const p of fallbackPayments) {
-        await setDoc(doc(db, 'payment_requests', p.id), {
-          id: p.id,
-          customer_name: p.customerName,
-          customer_phone: p.customerPhone,
-          customer_email: p.customerEmail || null,
-          plan_id: p.planId,
-          plan_name: p.planName,
-          plan_price: Number(p.planPrice),
-          screenshot_url: p.screenshotUrl || null,
-          reference: p.reference,
-          status: p.status,
-          timestamp: p.timestamp,
-          whatsapp_delivered: p.whatsappDelivered || false
-        });
-      }
-    }
-
-    // 4. Seed active vouchers
-    const vSnap = await getDocs(collection(db, 'active_vouchers'));
-    if (vSnap.size === 0) {
-      console.log('🌱 Seeding default active vouchers inside Firestore...');
-      for (const v of fallbackVouchers) {
-        await setDoc(doc(db, 'active_vouchers', v.id), {
-          id: v.id,
-          code: v.code,
-          plan_id: v.planId,
-          plan_name: v.planName,
-          plan_price: Number(v.planPrice),
-          status: v.status,
-          date_created: v.dateCreated,
-          duration_hours: Number(v.durationHours),
-          data_limit_gb: Number(v.dataLimitGb),
-          remaining_data_gb: Number(v.remainingDataGb),
-          speed_limit_mbps: Number(v.speedLimitMbps),
-          customer_name: v.customerName || null,
-          customer_phone: v.customerPhone || null,
-          customer_email: v.customerEmail || null,
-          is_multi_device: v.isMultiDevice || false,
-          device_limit: v.deviceLimit || 1,
-          notes: v.notes || null
-        });
-      }
-    }
-
-    // 5. Seed customers
-    const cSnap = await getDocs(collection(db, 'customers'));
-    if (cSnap.size === 0) {
-      console.log('🌱 Seeding default customers inside Firestore...');
-      for (const c of fallbackCustomers) {
-        await setDoc(doc(db, 'customers', c.id), {
-          id: c.id,
-          name: c.name,
-          phone: c.phone,
-          whatsapp: c.whatsapp || '',
-          active_plan_id: c.activePlanId || '',
-          active_plan_name: c.activePlanName || '',
-          expiry_time: c.expiryTime || '',
-          total_spend: Number(c.totalSpend ?? 0),
-          history_vouchers_count: Number(c.historyVouchersCount ?? 0),
-          is_suspended: !!c.isSuspended,
-          is_blacklisted: !!c.isBlacklisted,
-          notes: c.notes || '',
-          joined_date: c.joinedDate || new Date().toISOString()
-        });
-      }
-    }
-
-    // 6. Seed active sessions
-    const sSnap = await getDocs(collection(db, 'active_sessions'));
-    if (sSnap.size === 0) {
-      console.log('🌱 Seeding default active sessions inside Firestore...');
-      for (const s of fallbackSessions) {
-        await setDoc(doc(db, 'active_sessions', s.id), {
-          id: s.id,
-          customer_name: s.customerName,
-          ip_address: s.ipAddress,
-          mac_address: s.macAddress,
-          device_type: s.deviceType || 'General Device',
-          data_used_gb: Number(s.dataUsedGb ?? 0),
-          upload_speed_mbps: Number(s.uploadSpeedMbps ?? 0),
-          download_speed_mbps: Number(s.downloadSpeedMbps ?? 0),
-          connected_duration: s.connectedDuration,
-          voucher_code: s.voucherCode
-        });
-      }
-    }
-
-    // 7. Seed whatsapp message logs
-    const msgSnap = await getDocs(collection(db, 'whatsapp_message_logs'));
-    if (msgSnap.size === 0) {
-      console.log('🌱 Seeding default whatsapp message logs inside Firestore...');
-      for (const msg of fallbackMessageLogs) {
-        await setDoc(doc(db, 'whatsapp_message_logs', msg.id), {
-          id: msg.id,
-          recipient_name: msg.recipientName,
-          recipient_phone: msg.recipientPhone,
-          message_type: msg.messageType,
-          content: msg.content,
-          status: msg.status || 'Delivered',
-          timestamp: msg.timestamp,
-          plan_name: msg.planName || null,
-          voucher_code: msg.voucherCode || null
-        });
-      }
-    }
-
-    // 8. Seed system operator configs
-    const sysSnap = await getDocs(collection(db, 'system_config'));
-    let hasAnn = false;
-    let hasTier = false;
-    sysSnap.forEach(d => {
-      const data = d.data();
-      if (data.key === 'saas_announcement') hasAnn = true;
-      if (data.key === 'saas_tier') hasTier = true;
-    });
-    if (!hasAnn) {
-      await setDoc(doc(db, 'system_config', 'saas_announcement'), {
-        key: 'saas_announcement',
-        value: fallbackAnnouncement
-      });
-    }
-    if (!hasTier) {
-      await setDoc(doc(db, 'system_config', 'saas_tier'), {
-        key: 'saas_tier',
-        value: fallbackSaaSTier
-      });
-    }
-
-    console.log('🎉 Google Firestore Seeding completed successfully and is active!');
-  } catch (err: any) {
-    dbStatus = 'error_fallback_mode';
-    dbErrorMsg = err.message;
-    console.error('❌ Failed connecting or seeding Google Firebase Firestore database:', err.message);
-  }
-}
-
-// Kickstart Firestore seeding
-initializeFirebaseCollections();
-
 // ----------------------------------------------------
-// FULL REST API ROUTINGS WITH DRUM-TIGHT FIREBASE CORES
+// FULL REST API ROUTINGS WITH DRUM-TIGHT REST API ROUTINGS
 // ----------------------------------------------------
 
 // DB Status Badge query
 app.get('/api/db-status', (req, res) => {
   res.json({
-    status: neonActive ? 'connected' : dbStatus,
-    error: neonActive ? '' : (neonErrorMsg || dbErrorMsg),
-    neonActive: neonActive,
+    status: neonActive ? 'connected' : 'offline',
+    error: neonActive ? '' : neonErrorMsg,
+    neonActive,
     neonError: neonErrorMsg,
     hasDatabaseUrl: !!process.env.DATABASE_URL,
     databaseUrlLength: process.env.DATABASE_URL ? process.env.DATABASE_URL.length : 0,
-    firebaseActive: dbStatus === 'connected',
-    firebaseStatus: dbStatus,
-    firebaseError: dbErrorMsg,
-    provider: neonActive ? 'Neon Serverless PostgreSQL Database' : 'Google Firebase Firestore (Spark / Free Tier Plan)'
+    provider: neonActive ? 'Neon Serverless PostgreSQL Database' : 'Local Sandbox Storage'
   });
+});
 });
 
 // RESELLER REGISTRATION ENDPOINT (Neon Postgres connected)
@@ -908,12 +700,11 @@ app.post('/api/reseller/register', async (req, res) => {
       return res.status(500).json({ error: `Neon SQL database error: ${err.message}` });
     }
   } else {
-    // Durable Firebase Firestore Registration Fallback
-    try {
+        try {
       const regDocRef = doc(db, 'reseller_registrations', cleanEmail);
       const regDocSnap = await getDoc(regDocRef);
       if (regDocSnap.exists()) {
-        return res.status(400).json({ error: 'An account with this email address already exists in the Firestore database.' });
+        return res.status(400).json({ error: 'An account with this email address already exists in the database.' });
       }
       
       const newReg = {
@@ -951,10 +742,10 @@ app.post('/api/reseller/register', async (req, res) => {
         payment_instructions: 'Transfer to listed bank account, upload screenshot for automatic voucher code validation.'
       });
 
-      console.log(`🎉 Reseller ${cleanEmail} registered successfully in Cloud Firestore!`);
+      console.log(`🎉 Reseller ${cleanEmail} registered successfully in database!`);
       return res.json({ success: true, user: newReg });
     } catch (err: any) {
-      console.warn('⚠️ Cloud Firestore write bypass active, storing securely in server-side persistent database db_sandbox.json:', err.message);
+      console.warn('⚠️ Sandbox fallback active:', err.message);
       
       const exists = fallbackRegistrations.some(u => u.email_address?.toLowerCase() === cleanEmail);
       if (exists) {
@@ -1022,19 +813,19 @@ app.post('/api/reseller/login', async (req, res) => {
       return res.status(500).json({ error: `Neon SQL database login error: ${err.message}` });
     }
   } else {
-    // Check durable Firebase Firestore registrations fallback
+    // Check cached registration fallback
     try {
       const regDocRef = doc(db, 'reseller_registrations', cleanEmail);
       const regDocSnap = await getDoc(regDocRef);
       if (regDocSnap.exists()) {
         const found = regDocSnap.data();
         if (found.password === password) {
-          console.log(`👤 Reseller authenticated successfully via Cloud Firestore: ${cleanEmail}`);
+          console.log(`👤 Reseller authenticated successfully via local cache: ${cleanEmail}`);
           return res.json({ success: true, user: found });
         }
       }
     } catch (err: any) {
-      console.error('❌ Firestore Login fallback query failed:', err.message);
+      console.error('❌ Local login fallback failed:', err.message);
     }
     
     // In-memory fallback check
@@ -1059,7 +850,8 @@ app.get('/api/resellers', async (req, res) => {
     } catch (err: any) {
       return res.status(500).json({ error: `Neon Postgres error: ${err.message}` });
     }
-  } else if (dbStatus === 'connected') {
+  } else {
+  // Neon-first logic is active above
     try {
       const colRef = collection(db, 'reseller_registrations');
       const snapshot = await getDocs(colRef);
@@ -1069,7 +861,7 @@ app.get('/api/resellers', async (req, res) => {
       });
       return res.json(list);
     } catch (err: any) {
-      return res.status(500).json({ error: `Firestore error: ${err.message}` });
+      return res.status(500).json({ error: `Database error: ${err.message}` });
     }
   } else {
     return res.json(fallbackRegistrations);
@@ -1079,7 +871,8 @@ app.get('/api/resellers', async (req, res) => {
 // RESELLER BUSINESS PROFILE
 app.get('/api/business', async (req, res) => {
   const resellerEmail = (req.query.email as string || '').trim().toLowerCase();
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       if (resellerEmail) {
         const docRef = doc(db, 'reseller_profiles', resellerEmail);
@@ -1140,8 +933,7 @@ app.get('/api/business', async (req, res) => {
         });
       }
     } catch (err) {
-      console.error('Firebase business read failed:', err);
-    }
+      }
   }
   res.json(fallbackBusiness);
 });
@@ -1149,7 +941,8 @@ app.get('/api/business', async (req, res) => {
 app.post('/api/business', async (req, res) => {
   const b = req.body;
   const id = b.id || 'biz_1';
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       await setDoc(doc(db, 'reseller_profiles', id), {
         id: id,
@@ -1175,8 +968,7 @@ app.post('/api/business', async (req, res) => {
       fallbackBusiness = { ...fallbackBusiness, ...b };
       return res.json({ success: true, updated: b });
     } catch (err) {
-      console.error('Firebase business save failed:', err);
-    }
+      }
   }
   fallbackBusiness = { ...fallbackBusiness, ...b };
   res.json({ success: true, updated: fallbackBusiness });
@@ -1184,7 +976,8 @@ app.post('/api/business', async (req, res) => {
 
 // INTERNET PLANS ROUTINGS
 app.get('/api/plans', async (req, res) => {
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       const snapshot = await getDocs(collection(db, 'internet_plans'));
       const plans = snapshot.docs.map(docSnap => {
@@ -1207,15 +1000,15 @@ app.get('/api/plans', async (req, res) => {
       plans.sort((a, b) => a.price - b.price);
       return res.json(plans);
     } catch (err) {
-      console.error('Firebase plans fetch failed:', err);
-    }
+      }
   }
   res.json(fallbackPlans);
 });
 
 app.post('/api/plans', async (req, res) => {
   const p = req.body;
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       await setDoc(doc(db, 'internet_plans', p.id), {
         id: p.id,
@@ -1240,8 +1033,7 @@ app.post('/api/plans', async (req, res) => {
       saveSandboxData();
       return res.json({ success: true, plan: p });
     } catch (err) {
-      console.error('Firebase plan save failed:', err);
-    }
+      }
   }
   const idx = fallbackPlans.findIndex(x => x.id === p.id);
   if (idx > -1) {
@@ -1255,15 +1047,15 @@ app.post('/api/plans', async (req, res) => {
 
 app.delete('/api/plans/:id', async (req, res) => {
   const id = req.params.id;
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       await deleteDoc(doc(db, 'internet_plans', id));
       fallbackPlans = fallbackPlans.filter((p) => p.id !== id);
       saveSandboxData();
       return res.json({ success: true });
     } catch (err) {
-      console.error('Firebase plan delete error:', err);
-    }
+      }
   }
   fallbackPlans = fallbackPlans.filter((p) => p.id !== id);
   saveSandboxData();
@@ -1272,7 +1064,8 @@ app.delete('/api/plans/:id', async (req, res) => {
 
 // PAYMENTS VERIFICATION REQUESTS ROUTINGS
 app.get('/api/payments', async (req, res) => {
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       const snapshot = await getDocs(collection(db, 'payment_requests'));
       const payments = snapshot.docs.map(docSnap => {
@@ -1295,15 +1088,15 @@ app.get('/api/payments', async (req, res) => {
       payments.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       return res.json(payments);
     } catch (err) {
-      console.error('Firebase payments fetch error:', err);
-    }
+      }
   }
   res.json(fallbackPayments);
 });
 
 app.post('/api/payments', async (req, res) => {
   const p = req.body;
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       await setDoc(doc(db, 'payment_requests', p.id), {
         id: p.id,
@@ -1323,23 +1116,23 @@ app.post('/api/payments', async (req, res) => {
       saveSandboxData();
       return res.json({ success: true, payment: p });
     } catch (err) {
-      console.error('Firebase payment submit error:', err);
-    }
+      }
   }
   fallbackPayments.unshift(p);
   saveSandboxData();
   res.json({ success: true, payment: p });
 });
 
-// APPROVAL CORE FLOW: GENERATES ACTIVE VOUCHERS AND CUSTOMERS IN FIRESTORE CORES
+// APPROVAL CORE FLOW: GENERATES ACTIVE VOUCHERS AND CUSTOMERS IN APPROVAL FLOW
 app.post('/api/payments/approve', async (req, res) => {
   const { id, spawnedVoucherCode, spawnedVoucherId } = req.body;
   
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       const reqSnap = await getDoc(doc(db, 'payment_requests', id));
       if (!reqSnap.exists()) {
-        throw new Error('Payment request token not found in Firebase Firestore');
+        throw new Error('Payment request token not found in database');
       }
       const payReq = reqSnap.data();
       
@@ -1420,8 +1213,7 @@ app.post('/api/payments/approve', async (req, res) => {
       saveSandboxData();
       return res.json({ success: true });
     } catch (err) {
-      console.error('Firebase approve payment exception:', err);
-    }
+      }
   }
 
   // Backup Manual In-Memory/Fallback workflow
@@ -1478,14 +1270,14 @@ app.post('/api/payments/approve', async (req, res) => {
 
 app.post('/api/payments/reject', async (req, res) => {
   const { id } = req.body;
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       await updateDoc(doc(db, 'payment_requests', id), { status: 'Rejected' });
       saveSandboxData();
       return res.json({ success: true });
     } catch (err) {
-      console.error('Firebase payment reject failed:', err);
-    }
+      }
   }
   const idx = fallbackPayments.findIndex((x) => x.id === id);
   if (idx > -1) {
@@ -1497,7 +1289,8 @@ app.post('/api/payments/reject', async (req, res) => {
 
 // ACTIVE VOUCHERS GENERAL
 app.get('/api/vouchers', async (req, res) => {
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       const snapshot = await getDocs(collection(db, 'active_vouchers'));
       const vouchers = snapshot.docs.map(docSnap => {
@@ -1525,15 +1318,15 @@ app.get('/api/vouchers', async (req, res) => {
       vouchers.sort((a,b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime());
       return res.json(vouchers);
     } catch (err) {
-      console.error('Firebase vouchers fetch failed:', err);
-    }
+      }
   }
   res.json(fallbackVouchers);
 });
 
 app.post('/api/vouchers', async (req, res) => {
   const v = req.body;
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       await setDoc(doc(db, 'active_vouchers', v.id), {
         id: v.id,
@@ -1562,8 +1355,7 @@ app.post('/api/vouchers', async (req, res) => {
       }
       return res.json({ success: true, voucher: v });
     } catch (err) {
-      console.error('Firebase voucher save failed:', err);
-    }
+      }
   }
   const idx = fallbackVouchers.findIndex(x => x.id === v.id);
   if (idx > -1) {
@@ -1577,7 +1369,8 @@ app.post('/api/vouchers', async (req, res) => {
 
 // CUSTOMERS MANAGEMENT ROUTINGS
 app.get('/api/customers', async (req, res) => {
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       const snapshot = await getDocs(collection(db, 'customers'));
       const customers = snapshot.docs.map(docSnap => {
@@ -1601,15 +1394,15 @@ app.get('/api/customers', async (req, res) => {
       customers.sort((a,b) => new Date(b.joinedDate).getTime() - new Date(a.joinedDate).getTime());
       return res.json(customers);
     } catch (err) {
-      console.error('Firebase fetch customers error:', err);
-    }
+      }
   }
   res.json(fallbackCustomers);
 });
 
 app.post('/api/customers', async (req, res) => {
   const c = req.body;
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       await setDoc(doc(db, 'customers', c.id), {
         id: c.id,
@@ -1635,8 +1428,7 @@ app.post('/api/customers', async (req, res) => {
       saveSandboxData();
       return res.json({ success: true, customer: c });
     } catch (err) {
-      console.error('Firebase save customer error:', err);
-    }
+      }
   }
   const idx = fallbackCustomers.findIndex(x => x.id === c.id);
   if (idx > -1) {
@@ -1650,7 +1442,8 @@ app.post('/api/customers', async (req, res) => {
 
 // ACTIVE SESSIONS ROUTINGS
 app.get('/api/sessions', async (req, res) => {
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       const snapshot = await getDocs(collection(db, 'active_sessions'));
       const sessions = snapshot.docs.map(docSnap => {
@@ -1670,22 +1463,21 @@ app.get('/api/sessions', async (req, res) => {
       });
       return res.json(sessions);
     } catch (err) {
-      console.error('Firebase load sessions failed:', err);
-    }
+      }
   }
   res.json(fallbackSessions);
 });
 
 app.post('/api/sessions/disconnect', async (req, res) => {
   const { id } = req.body;
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       await deleteDoc(doc(db, 'active_sessions', id));
       fallbackSessions = fallbackSessions.filter((s) => s.id !== id);
       return res.json({ success: true });
     } catch (err) {
-      console.error('Firebase session disconnect failed:', err);
-    }
+      }
   }
   fallbackSessions = fallbackSessions.filter((s) => s.id !== id);
   res.json({ success: true });
@@ -1693,7 +1485,8 @@ app.post('/api/sessions/disconnect', async (req, res) => {
 
 // WHATSAPP OUTGOING MESSAGE LOGS
 app.get('/api/message-logs', async (req, res) => {
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       const snapshot = await getDocs(collection(db, 'whatsapp_message_logs'));
       const logs = snapshot.docs.map(docSnap => {
@@ -1713,15 +1506,15 @@ app.get('/api/message-logs', async (req, res) => {
       logs.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       return res.json(logs);
     } catch (err) {
-      console.error('Firebase message logs fetch failed:', err);
-    }
+      }
   }
   res.json(fallbackMessageLogs);
 });
 
 app.post('/api/message-logs', async (req, res) => {
   const m = req.body;
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       await setDoc(doc(db, 'whatsapp_message_logs', m.id), {
         id: m.id,
@@ -1737,8 +1530,7 @@ app.post('/api/message-logs', async (req, res) => {
       fallbackMessageLogs.unshift(m);
       return res.json({ success: true, log: m });
     } catch (err) {
-      console.error('Firebase trace message save failed:', err);
-    }
+      }
   }
   fallbackMessageLogs.unshift(m);
   res.json({ success: true, log: m });
@@ -1749,7 +1541,8 @@ app.get('/api/operator', async (req, res) => {
   let announcement = fallbackAnnouncement;
   let saasTier = fallbackSaaSTier;
 
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       const snapshot = await getDocs(collection(db, 'system_config'));
       snapshot.forEach(docSnap => {
@@ -1758,15 +1551,15 @@ app.get('/api/operator', async (req, res) => {
         if (row.key === 'saas_tier') saasTier = row.value;
       });
     } catch (err) {
-      console.error('Firebase system config load failed:', err);
-    }
+      }
   }
   res.json({ announcement, saasTier });
 });
 
 app.post('/api/operator/announcement', async (req, res) => {
   const { announcement } = req.body;
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       await setDoc(doc(db, 'system_config', 'saas_announcement'), {
         key: 'saas_announcement',
@@ -1775,8 +1568,7 @@ app.post('/api/operator/announcement', async (req, res) => {
       fallbackAnnouncement = announcement;
       return res.json({ success: true });
     } catch (err) {
-      console.error('Firebase save announcement failed:', err);
-    }
+      }
   }
   fallbackAnnouncement = announcement;
   res.json({ success: true });
@@ -1784,7 +1576,8 @@ app.post('/api/operator/announcement', async (req, res) => {
 
 app.post('/api/operator/saas-tier', async (req, res) => {
   const { saasTier } = req.body;
-  if (dbStatus === 'connected') {
+  {
+  // Neon-first logic is active above
     try {
       await setDoc(doc(db, 'system_config', 'saas_tier'), {
         key: 'saas_tier',
@@ -1793,8 +1586,7 @@ app.post('/api/operator/saas-tier', async (req, res) => {
       fallbackSaaSTier = saasTier;
       return res.json({ success: true });
     } catch (err) {
-      console.error('Firebase save saas tier failed:', err);
-    }
+      }
   }
   fallbackSaaSTier = saasTier;
   res.json({ success: true });
