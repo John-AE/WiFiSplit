@@ -24,6 +24,8 @@ import {
   RotateCcw, Sparkles, AlertCircle, RefreshCw, Layers, PhoneCall, ShieldAlert, Smartphone
 } from 'lucide-react';
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 export default function App() {
   // 1. Core Persistent States from localStorage (acts as synchronous fast initial load and safe offline fallback)
   const [business, setBusiness] = useState<HotspotBusiness>(() => {
@@ -110,7 +112,7 @@ export default function App() {
   // DB Sync helper API calls
   const updateBusinessApi = async (updatedBiz: HotspotBusiness) => {
     try {
-      const res = await fetch('/api/business', {
+      const res = await fetch(`${API_BASE}/api/business`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedBiz),
@@ -123,7 +125,7 @@ export default function App() {
 
   const savePlanApi = async (p: HotspotPlan) => {
     try {
-      const res = await fetch('/api/plans', {
+      const res = await fetch(`${API_BASE}/api/plans`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(p),
@@ -136,7 +138,7 @@ export default function App() {
 
   const deletePlanApi = async (id: string) => {
     try {
-      const res = await fetch(`/api/plans/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE}/api/plans/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('API delete plan failed');
     } catch (e) {
       console.warn('API delete plan failed:', e);
@@ -145,7 +147,7 @@ export default function App() {
 
   const saveCustomerApi = async (c: Customer) => {
     try {
-      const res = await fetch('/api/customers', {
+      const res = await fetch(`${API_BASE}/api/customers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(c),
@@ -158,7 +160,7 @@ export default function App() {
 
   const submitPaymentRequestApi = async (pay: PaymentRequest) => {
     try {
-      const res = await fetch('/api/payments', {
+      const res = await fetch(`${API_BASE}/api/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pay),
@@ -171,7 +173,7 @@ export default function App() {
 
   const saveVoucherApi = async (vch: Voucher) => {
     try {
-      const res = await fetch('/api/vouchers', {
+      const res = await fetch(`${API_BASE}/api/vouchers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(vch),
@@ -182,97 +184,12 @@ export default function App() {
     }
   };
 
-  const savePlanApi = async (p: HotspotPlan) => {
-    try {
-      const res = await fetch('/api/plans', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(p),
-      });
-      if (!res.ok) throw new Error('API save plan failed');
-    } catch (e) {
-      console.warn('API save plan failed. Saved locally. Direct Firestore sync active...', e);
-      try {
-        await setDoc(doc(db, 'internet_plans', p.id), p);
-      } catch (fErr) {
-        console.error('❌ Direct plan write to Firestore failed:', fErr);
-      }
-    }
-  };
-
-  const deletePlanApi = async (id: string) => {
-    try {
-      const res = await fetch(`/api/plans/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('API delete plan failed');
-    } catch (e) {
-      console.warn('API delete plan failed:', e);
-      try {
-        await deleteDoc(doc(db, 'internet_plans', id));
-      } catch (fErr) {
-        console.error('❌ Direct plan delete from Firestore failed:', fErr);
-      }
-    }
-  };
-
-  const saveCustomerApi = async (c: Customer) => {
-    try {
-      const res = await fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(c),
-      });
-      if (!res.ok) throw new Error('API save customer failed');
-    } catch (e) {
-      console.warn('API save customer failed:', e);
-      try {
-        await setDoc(doc(db, 'customers', c.id), c);
-      } catch (fErr) {
-        console.error('❌ Direct customer write to Firestore failed:', fErr);
-      }
-    }
-  };
-
-  const submitPaymentRequestApi = async (pay: PaymentRequest) => {
-    try {
-      const res = await fetch('/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(pay),
-      });
-      if (!res.ok) throw new Error('API submit payment failed');
-    } catch (e) {
-      console.warn('API submit payment failed:', e);
-      try {
-        await setDoc(doc(db, 'payment_requests', pay.id), pay);
-      } catch (fErr) {
-        console.error('❌ Direct payment write to Firestore failed:', fErr);
-      }
-    }
-  };
-
-  const saveVoucherApi = async (vch: Voucher) => {
-    try {
-      const res = await fetch('/api/vouchers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(vch),
-      });
-      if (!res.ok) throw new Error('API save voucher failed');
-    } catch (e) {
-      console.warn('API save voucher failed:', e);
-      try {
-        await setDoc(doc(db, 'active_vouchers', vch.code), vch);
-      } catch (fErr) {
-        console.error('❌ Direct voucher write to Firestore failed:', fErr);
-      }
-    }
-  };
 
   // Synchronise state on load from Cloud DB if accessible (Server API or direct client Firestore)
   useEffect(() => {
     async function loadAllDbData() {
       try {
-        const statusRes = await fetch('/api/db-status');
+        const statusRes = await fetch(`${API_BASE}/api/db-status`);
         const ct = statusRes.headers.get('content-type');
         if (!ct || !ct.includes('application/json')) {
           throw new Error('Server returned unparseable text format, the backend might be updating.');
@@ -293,11 +210,11 @@ export default function App() {
           const emailParam = resellerUser?.email_address ? `?email=${encodeURIComponent(resellerUser.email_address)}` : '';
 
           const [bizRes, planRes, vchRes, custRes, payRes] = await Promise.all([
-            safeFetchJson(`/api/business${emailParam}`),
-            safeFetchJson('/api/plans'),
-            safeFetchJson('/api/vouchers'),
-            safeFetchJson('/api/customers'),
-            safeFetchJson('/api/payments'),
+            safeFetchJson(`${API_BASE}/api/business${emailParam}`),
+            safeFetchJson(`${API_BASE}/api/plans`),
+            safeFetchJson(`${API_BASE}/api/vouchers`),
+            safeFetchJson(`${API_BASE}/api/customers`),
+            safeFetchJson(`${API_BASE}/api/payments`),
           ]);
 
           if (bizRes && bizRes.id) setBusiness(bizRes);
@@ -308,61 +225,7 @@ export default function App() {
           console.log('⚡ All components initialized from active online secure database collections.');
         }
       } catch (err) {
-        console.warn('⚠️ API server unreachable, reading directly from Firebase Firestore Cloud DB bypass:', err);
-        setDbStatusInfo({ status: 'connected', provider: 'Google Cloud Firestore', neonActive: false, firebaseActive: true });
-        
-        try {
-          const emailValue = resellerUser?.email_address;
-          if (emailValue) {
-            const cleanEmail = emailValue.trim().toLowerCase();
-            
-            // 1. Load business profile / settings
-            const bizDoc = await getDoc(doc(db, 'reseller_profiles', cleanEmail));
-            if (bizDoc.exists()) {
-              const bData = bizDoc.data();
-              setBusiness({
-                id: cleanEmail,
-                businessName: bData.business_name || 'My Hotspot Network',
-                logoEmoji: bData.text_logo || '📶',
-                logoBgColor: bData.logo_bg_color || '#3b82f6',
-                phone: bData.phone || '',
-                whatsapp: bData.whatsapp_number || bData.phone || '',
-                location: bData.location || '',
-                currency: bData.currency || 'NGN',
-                timezone: bData.timezone || 'Africa/Lagos',
-                routerType: bData.router_type || 'Starlink',
-                mikrotikIntegrationPlaceholder: false,
-                coverageArea: bData.coverage_area || '',
-                bankName: bData.bank_name || 'Access Bank',
-                bankAccountNo: bData.bank_account_no || '',
-                bankAccountName: bData.bank_account_name || '',
-                paymentInstructions: bData.payment_instructions || ''
-              });
-            }
-            
-            // 2. Load Plans
-            const plansSnap = await getDocs(collection(db, 'plans'));
-            const plansList = plansSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            if (plansList.length > 0) setPlans(plansList as any);
-            
-            // 3. Load Vouchers
-            const vSnap = await getDocs(collection(db, 'vouchers'));
-            const vList = vSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            if (vList.length > 0) setVouchers(vList as any);
-            
-            // 4. Load Customers
-            const cSnap = await getDocs(collection(db, 'customers'));
-            const cList = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            if (cList.length > 0) setCustomers(cList as any);
-            
-            // 5. Load Payments
-            const pSnap = await getDocs(collection(db, 'payments'));
-            const pList = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            if (pList.length > 0) setPaymentRequests(pList as any);
-          }
-        } catch (firebaseErr: any) {
-          console.error('❌ Direct Client Firebase connection failed:', firebaseErr);
-        }
+        console.warn('⚠️ API server unreachable — running on locally cached data:', err);
       }
     }
     loadAllDbData();
@@ -439,7 +302,7 @@ export default function App() {
       prev.map((r) => r.id === id ? { ...r, status: 'Approved' } : r)
     );
     try {
-      await fetch('/api/payments/approve', {
+      await fetch(`${API_BASE}/api/payments/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -458,7 +321,7 @@ export default function App() {
       prev.map((r) => r.id === id ? { ...r, status: 'Rejected' } : r)
     );
     try {
-      await fetch('/api/payments/reject', {
+      await fetch(`${API_BASE}/api/payments/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })

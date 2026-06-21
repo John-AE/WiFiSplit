@@ -9,6 +9,17 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
+// Enable CORS for cross-origin frontend-to-backend communication
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGINS || '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
 const { Pool } = pg;
@@ -231,32 +242,7 @@ let fallbackBusiness = {
   emailAlertsEnabled: true,
   adminAlertEmail: 'johnnybgsu@gmail.com'
 };
-
-// [fallbackPlans ... fallbackMessageLogs trimmed for brevity in this patch — keep existing seed arrays as-is]
-
-// In-Memory Backup collections if Database connection is offline or failed
-let fallbackBusiness = {
-  id: 'biz_1',
-  businessName: 'Starlink Elite Wi-Fi',
-  logoEmoji: '⚡',
-  logoBgColor: '#059669',
-  phone: '+234 812 345 6789',
-  whatsapp: '+234 812 345 6789',
-  location: 'Yaba, Lagos, Nigeria',
-  currency: 'NGN',
-  timezone: 'Africa/Lagos',
-  routerType: 'Starlink',
-  mikrotikIntegrationPlaceholder: false,
-  coverageArea: 'Yaba Student Hostels & Environs',
-  bankName: 'Opay',
-  bankAccountNo: '8123456789',
-  bankAccountName: 'Yaba Wireless Links',
-  paymentInstructions: 'Transfer exact amount to our Opay account. Specify transaction ref. Vouchers auto-generate post manual confirmation!',
-  whatsappProvider: 'Meta Cloud API',
-  whatsappApiKey: WHATSAPP_API_KEY,
-  emailAlertsEnabled: true,
-  adminAlertEmail: 'johnnybgsu@gmail.com'
-};
+let fallbackRegistrations: any[] = [];
 
 let fallbackPlans = [
   {
@@ -671,7 +657,6 @@ app.get('/api/db-status', (req, res) => {
     provider: neonActive ? 'Neon Serverless PostgreSQL Database' : 'Local Sandbox Storage'
   });
 });
-});
 
 // RESELLER REGISTRATION ENDPOINT (Neon Postgres connected)
 app.post('/api/reseller/register', async (req, res) => {
@@ -700,89 +685,43 @@ app.post('/api/reseller/register', async (req, res) => {
       return res.status(500).json({ error: `Neon SQL database error: ${err.message}` });
     }
   } else {
-        try {
-      const regDocRef = doc(db, 'reseller_registrations', cleanEmail);
-      const regDocSnap = await getDoc(regDocRef);
-      if (regDocSnap.exists()) {
-        return res.status(400).json({ error: 'An account with this email address already exists in the database.' });
-      }
-      
-      const newReg = {
-        id: Date.now(),
-        first_name: firstName || '',
-        last_name: lastName || '',
-        business_name: businessName || '',
-        business_address: businessAddress || '',
-        email_address: cleanEmail,
-        whatsapp_number: whatsappNumber || '',
-        password: password,
-        status: 'Active',
-        created_at: new Date().toISOString()
-      };
-      
-      await setDoc(regDocRef, newReg);
-      
-      // Also write an active profile to reseller_profiles collection so they instantly have editable settings in the dashboard
-      const profileDocRef = doc(db, 'reseller_profiles', cleanEmail);
-      await setDoc(profileDocRef, {
-        id: cleanEmail,
-        business_name: businessName || 'My Hotspot Network',
-        logo_emoji: '📶',
-        logo_bg_color: '#3b82f6',
-        phone: whatsappNumber || '',
-        whatsapp_number: whatsappNumber || '',
-        location: businessAddress || '',
-        currency: 'NGN',
-        timezone: 'Africa/Lagos',
-        router_type: 'Starlink',
-        coverage_area: businessAddress || '',
-        bank_name: 'Access Bank',
-        bank_account_no: '0000000000',
-        bank_account_name: `${firstName || ''} ${lastName || ''}`.trim(),
-        payment_instructions: 'Transfer to listed bank account, upload screenshot for automatic voucher code validation.'
-      });
-
-      console.log(`🎉 Reseller ${cleanEmail} registered successfully in database!`);
-      return res.json({ success: true, user: newReg });
-    } catch (err: any) {
-      console.warn('⚠️ Sandbox fallback active:', err.message);
-      
-      const exists = fallbackRegistrations.some(u => u.email_address?.toLowerCase() === cleanEmail);
-      if (exists) {
-        return res.status(400).json({ error: 'An account with this email address already exists in our database.' });
-      }
-
-      const newReg = {
-        id: Date.now(),
-        first_name: firstName || '',
-        last_name: lastName || '',
-        business_name: businessName || '',
-        business_address: businessAddress || '',
-        email_address: cleanEmail,
-        whatsapp_number: whatsappNumber || '',
-        password: password,
-        status: 'Active',
-        created_at: new Date().toISOString()
-      };
-
-      fallbackRegistrations.push(newReg);
-
-      if (fallbackBusiness.id === 'biz_1') {
-        fallbackBusiness = {
-          ...fallbackBusiness,
-          id: cleanEmail,
-          businessName: businessName || fallbackBusiness.businessName,
-          phone: whatsappNumber || fallbackBusiness.phone,
-          whatsapp: whatsappNumber || fallbackBusiness.whatsapp,
-          location: businessAddress || fallbackBusiness.location,
-          bankAccountName: `${firstName || ''} ${lastName || ''}`.trim() || fallbackBusiness.bankAccountName,
-          adminAlertEmail: cleanEmail
-        };
-      }
-
-      saveSandboxData();
-      return res.json({ success: true, user: newReg });
+    // Neon not active: use in-memory sandbox fallback
+    const exists = fallbackRegistrations.some(u => u.email_address?.toLowerCase() === cleanEmail);
+    if (exists) {
+      return res.status(400).json({ error: 'An account with this email address already exists in our database.' });
     }
+
+    const newReg = {
+      id: Date.now(),
+      first_name: firstName || '',
+      last_name: lastName || '',
+      business_name: businessName || '',
+      business_address: businessAddress || '',
+      email_address: cleanEmail,
+      whatsapp_number: whatsappNumber || '',
+      password: password,
+      status: 'Active',
+      created_at: new Date().toISOString()
+    };
+
+    fallbackRegistrations.push(newReg);
+
+    if (fallbackBusiness.id === 'biz_1') {
+      fallbackBusiness = {
+        ...fallbackBusiness,
+        id: cleanEmail,
+        businessName: businessName || fallbackBusiness.businessName,
+        phone: whatsappNumber || fallbackBusiness.phone,
+        whatsapp: whatsappNumber || fallbackBusiness.whatsapp,
+        location: businessAddress || fallbackBusiness.location,
+        bankAccountName: `${firstName || ''} ${lastName || ''}`.trim() || fallbackBusiness.bankAccountName,
+        adminAlertEmail: cleanEmail
+      };
+    }
+
+    console.log(`🎉 Reseller ${cleanEmail} registered successfully in sandbox fallback!`);
+    saveSandboxData();
+    return res.json({ success: true, user: newReg });
   }
 });
 
@@ -813,22 +752,7 @@ app.post('/api/reseller/login', async (req, res) => {
       return res.status(500).json({ error: `Neon SQL database login error: ${err.message}` });
     }
   } else {
-    // Check cached registration fallback
-    try {
-      const regDocRef = doc(db, 'reseller_registrations', cleanEmail);
-      const regDocSnap = await getDoc(regDocRef);
-      if (regDocSnap.exists()) {
-        const found = regDocSnap.data();
-        if (found.password === password) {
-          console.log(`👤 Reseller authenticated successfully via local cache: ${cleanEmail}`);
-          return res.json({ success: true, user: found });
-        }
-      }
-    } catch (err: any) {
-      console.error('❌ Local login fallback failed:', err.message);
-    }
-    
-    // In-memory fallback check
+    // Neon not active: check in-memory sandbox fallback
     const found = fallbackRegistrations.find(
       r => r.email_address?.toLowerCase() === cleanEmail && r.password === password
     );
@@ -851,19 +775,6 @@ app.get('/api/resellers', async (req, res) => {
       return res.status(500).json({ error: `Neon Postgres error: ${err.message}` });
     }
   } else {
-  // Neon-first logic is active above
-    try {
-      const colRef = collection(db, 'reseller_registrations');
-      const snapshot = await getDocs(colRef);
-      const list: any[] = [];
-      snapshot.forEach(docSnap => {
-        list.push(docSnap.data());
-      });
-      return res.json(list);
-    } catch (err: any) {
-      return res.status(500).json({ error: `Database error: ${err.message}` });
-    }
-  } else {
     return res.json(fallbackRegistrations);
   }
 });
@@ -871,69 +782,63 @@ app.get('/api/resellers', async (req, res) => {
 // RESELLER BUSINESS PROFILE
 app.get('/api/business', async (req, res) => {
   const resellerEmail = (req.query.email as string || '').trim().toLowerCase();
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
       if (resellerEmail) {
-        const docRef = doc(db, 'reseller_profiles', resellerEmail);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const row = docSnap.data();
+        const result = await pgPool.query('SELECT * FROM reseller_profiles WHERE id = $1', [resellerEmail]);
+        if (result.rows.length > 0) {
+          const row = result.rows[0];
           return res.json({
-            id: row.id || docSnap.id,
-            businessName: row.business_name || row.businessName,
-            logoEmoji: row.logo_emoji || row.logoEmoji || '📶',
-            logoBgColor: row.logo_bg_color || row.logoBgColor || '#3b82f6',
+            id: row.id,
+            businessName: row.business_name,
+            logoEmoji: row.logo_emoji,
+            logoBgColor: row.logo_bg_color,
             phone: row.phone,
-            whatsapp: row.whatsapp_number || row.whatsapp,
-            location: row.location || '',
-            currency: row.currency || 'NGN',
-            timezone: row.timezone || 'Africa/Lagos',
-            routerType: row.router_type || row.routerType || 'Starlink',
-            coverageArea: row.coverage_area || row.coverageArea || '',
-            bankName: row.bank_name || row.bankName || '',
-            bankAccountNo: row.bank_account_no || row.bankAccountNo || '',
-            bankAccountName: row.bank_account_name || row.bankAccountName || '',
-            paymentInstructions: row.payment_instructions || row.paymentInstructions || '',
-            whatsappProvider: row.whatsapp_provider || row.whatsappProvider || 'Meta Cloud API',
-            whatsappApiKey: row.whatsapp_api_key || row.whatsappApiKey || '',
-            emailAlertsEnabled: row.email_alerts_enabled !== undefined ? row.email_alerts_enabled : true,
-            adminAlertEmail: row.admin_alert_email || row.adminAlertEmail || resellerEmail
+            whatsapp: row.whatsapp_number,
+            location: row.location,
+            currency: row.currency,
+            timezone: row.timezone,
+            routerType: row.router_type,
+            coverageArea: row.coverage_area,
+            bankName: row.bank_name,
+            bankAccountNo: row.bank_account_no,
+            bankAccountName: row.bank_account_name,
+            paymentInstructions: row.payment_instructions,
+            whatsappProvider: row.whatsapp_provider,
+            whatsappApiKey: row.whatsapp_api_key,
+            emailAlertsEnabled: row.email_alerts_enabled,
+            adminAlertEmail: row.admin_alert_email
           });
         }
       }
-
-      const colRef = collection(db, 'reseller_profiles');
-      const snapshot = await getDocs(colRef);
-      if (snapshot.size > 0) {
-        const docSnap = resellerEmail 
-          ? (snapshot.docs.find(d => d.id === resellerEmail) || snapshot.docs[0])
-          : snapshot.docs[0];
-        const row = docSnap.data();
+      const result = await pgPool.query('SELECT * FROM reseller_profiles LIMIT 1');
+      if (result.rows.length > 0) {
+        const row = result.rows[0];
         return res.json({
-          id: row.id || docSnap.id,
-          businessName: row.business_name || row.businessName,
-          logoEmoji: row.logo_emoji || row.logoEmoji || '⚡',
-          logoBgColor: row.logo_bg_color || row.logoBgColor || '#059669',
+          id: row.id,
+          businessName: row.business_name,
+          logoEmoji: row.logo_emoji,
+          logoBgColor: row.logo_bg_color,
           phone: row.phone,
-          whatsapp: row.whatsapp_number || row.whatsapp,
-          location: row.location || '',
-          currency: row.currency || 'NGN',
-          timezone: row.timezone || 'Africa/Lagos',
-          routerType: row.router_type || row.routerType || 'Starlink',
-          coverageArea: row.coverage_area || row.coverageArea || '',
-          bankName: row.bank_name || row.bankName || '',
-          bankAccountNo: row.bank_account_no || row.bankAccountNo || '',
-          bankAccountName: row.bank_account_name || row.bankAccountName || '',
-          paymentInstructions: row.payment_instructions || row.paymentInstructions || '',
-          whatsappProvider: row.whatsapp_provider || row.whatsappProvider || 'Meta Cloud API',
-          whatsappApiKey: row.whatsapp_api_key || row.whatsappApiKey || '',
-          emailAlertsEnabled: row.email_alerts_enabled !== undefined ? row.email_alerts_enabled : true,
-          adminAlertEmail: row.admin_alert_email || row.adminAlertEmail || resellerEmail || 'johnnybgsu@gmail.com'
+          whatsapp: row.whatsapp_number,
+          location: row.location,
+          currency: row.currency,
+          timezone: row.timezone,
+          routerType: row.router_type,
+          coverageArea: row.coverage_area,
+          bankName: row.bank_name,
+          bankAccountNo: row.bank_account_no,
+          bankAccountName: row.bank_account_name,
+          paymentInstructions: row.payment_instructions,
+          whatsappProvider: row.whatsapp_provider,
+          whatsappApiKey: row.whatsapp_api_key,
+          emailAlertsEnabled: row.email_alerts_enabled,
+          adminAlertEmail: row.admin_alert_email || resellerEmail || 'johnnybgsu@gmail.com'
         });
       }
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon business read error:', err.message);
+    }
   }
   res.json(fallbackBusiness);
 });
@@ -941,89 +846,106 @@ app.get('/api/business', async (req, res) => {
 app.post('/api/business', async (req, res) => {
   const b = req.body;
   const id = b.id || 'biz_1';
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      await setDoc(doc(db, 'reseller_profiles', id), {
-        id: id,
-        business_name: b.businessName,
-        logo_emoji: b.logoEmoji || '⚡',
-        logo_bg_color: b.logoBgColor || '#059669',
-        phone: b.phone,
-        whatsapp_number: b.whatsapp,
-        location: b.location || '',
-        currency: b.currency || 'NGN',
-        timezone: b.timezone || 'Africa/Lagos',
-        router_type: b.routerType || 'Starlink',
-        coverage_area: b.coverageArea || '',
-        bank_name: b.bankName || '',
-        bank_account_no: b.bankAccountNo || '',
-        bank_account_name: b.bankAccountName || '',
-        payment_instructions: b.paymentInstructions || '',
-        whatsapp_provider: b.whatsappProvider || 'Meta Cloud API',
-        whatsapp_api_key: b.whatsappApiKey || '',
-        email_alerts_enabled: b.emailAlertsEnabled !== undefined ? b.emailAlertsEnabled : false,
-        admin_alert_email: b.adminAlertEmail || ''
-      });
+      await pgPool.query(`
+        INSERT INTO reseller_profiles (
+          id, business_name, logo_emoji, logo_bg_color, phone, whatsapp_number, location,
+          currency, timezone, router_type, coverage_area, bank_name, bank_account_no,
+          bank_account_name, payment_instructions, whatsapp_provider, whatsapp_api_key,
+          email_alerts_enabled, admin_alert_email
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        ON CONFLICT (id) DO UPDATE SET
+          business_name = EXCLUDED.business_name,
+          logo_emoji = EXCLUDED.logo_emoji,
+          logo_bg_color = EXCLUDED.logo_bg_color,
+          phone = EXCLUDED.phone,
+          whatsapp_number = EXCLUDED.whatsapp_number,
+          location = EXCLUDED.location,
+          currency = EXCLUDED.currency,
+          timezone = EXCLUDED.timezone,
+          router_type = EXCLUDED.router_type,
+          coverage_area = EXCLUDED.coverage_area,
+          bank_name = EXCLUDED.bank_name,
+          bank_account_no = EXCLUDED.bank_account_no,
+          bank_account_name = EXCLUDED.bank_account_name,
+          payment_instructions = EXCLUDED.payment_instructions,
+          whatsapp_provider = EXCLUDED.whatsapp_provider,
+          whatsapp_api_key = EXCLUDED.whatsapp_api_key,
+          email_alerts_enabled = EXCLUDED.email_alerts_enabled,
+          admin_alert_email = EXCLUDED.admin_alert_email
+      `, [
+        id, b.businessName, b.logoEmoji || '⚡', b.logoBgColor || '#059669', b.phone, b.whatsapp, b.location || '',
+        b.currency || 'NGN', b.timezone || 'Africa/Lagos', b.routerType || 'Starlink', b.coverageArea || '',
+        b.bankName || '', b.bankAccountNo || '', b.bankAccountName || '', b.paymentInstructions || '',
+        b.whatsappProvider || 'Meta Cloud API', b.whatsappApiKey || '', b.emailAlertsEnabled !== undefined ? b.emailAlertsEnabled : true,
+        b.adminAlertEmail || ''
+      ]);
       fallbackBusiness = { ...fallbackBusiness, ...b };
+      saveSandboxData();
       return res.json({ success: true, updated: b });
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon business save error:', err.message);
+    }
   }
   fallbackBusiness = { ...fallbackBusiness, ...b };
+  saveSandboxData();
   res.json({ success: true, updated: fallbackBusiness });
 });
 
 // INTERNET PLANS ROUTINGS
 app.get('/api/plans', async (req, res) => {
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      const snapshot = await getDocs(collection(db, 'internet_plans'));
-      const plans = snapshot.docs.map(docSnap => {
-        const row = docSnap.data();
-        return {
-          id: row.id || docSnap.id,
-          name: row.name,
-          price: Number(row.price),
-          dataLimitGb: Number(row.data_limit_gb ?? row.dataLimitGb ?? 0),
-          durationHours: Number(row.duration_hours ?? row.durationHours ?? 24),
-          speedLimitMbps: Number(row.speed_limit_mbps ?? row.speedLimitMbps ?? 5),
-          deviceLimit: Number(row.device_limit ?? row.deviceLimit ?? 1),
-          validityPeriodDays: Number(row.validity_period_days ?? row.validityPeriodDays ?? 1),
-          autoExpiry: row.auto_expiry ?? row.autoExpiry ?? true,
-          description: row.description ?? '',
-          isActive: row.is_active ?? row.isActive ?? true,
-          isPopular: row.is_popular ?? row.isPopular ?? false
-        };
-      });
-      plans.sort((a, b) => a.price - b.price);
+      const result = await pgPool.query('SELECT * FROM internet_plans ORDER BY price ASC');
+      const plans = result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        price: Number(row.price),
+        dataLimitGb: Number(row.data_limit_gb ?? 0),
+        durationHours: Number(row.duration_hours ?? 24),
+        speedLimitMbps: Number(row.speed_limit_mbps ?? 5),
+        deviceLimit: Number(row.device_limit ?? 1),
+        validityPeriodDays: Number(row.validity_period_days ?? 1),
+        autoExpiry: !!row.auto_expiry,
+        description: row.description ?? '',
+        isActive: !!row.is_active,
+        isPopular: !!row.is_popular
+      }));
       return res.json(plans);
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon plans read error:', err.message);
+    }
   }
   res.json(fallbackPlans);
 });
 
 app.post('/api/plans', async (req, res) => {
   const p = req.body;
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      await setDoc(doc(db, 'internet_plans', p.id), {
-        id: p.id,
-        name: p.name,
-        price: Number(p.price),
-        data_limit_gb: Number(p.dataLimitGb ?? 0),
-        duration_hours: Number(p.durationHours ?? 24),
-        speed_limit_mbps: Number(p.speedLimitMbps ?? 5),
-        device_limit: Number(p.deviceLimit ?? 1),
-        validity_period_days: Number(p.validityPeriodDays ?? 1),
-        auto_expiry: p.autoExpiry ?? true,
-        description: p.description ?? '',
-        is_active: p.isActive ?? true,
-        is_popular: p.isPopular ?? false
-      });
+      await pgPool.query(`
+        INSERT INTO internet_plans (
+          id, name, price, data_limit_gb, duration_hours, speed_limit_mbps,
+          device_limit, validity_period_days, auto_expiry, description, is_active, is_popular
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          price = EXCLUDED.price,
+          data_limit_gb = EXCLUDED.data_limit_gb,
+          duration_hours = EXCLUDED.duration_hours,
+          speed_limit_mbps = EXCLUDED.speed_limit_mbps,
+          device_limit = EXCLUDED.device_limit,
+          validity_period_days = EXCLUDED.validity_period_days,
+          auto_expiry = EXCLUDED.auto_expiry,
+          description = EXCLUDED.description,
+          is_active = EXCLUDED.is_active,
+          is_popular = EXCLUDED.is_popular
+      `, [
+        p.id, p.name, Number(p.price), Number(p.dataLimitGb ?? 0), Number(p.durationHours ?? 24),
+        Number(p.speedLimitMbps ?? 5), Number(p.deviceLimit ?? 1), Number(p.validityPeriodDays ?? 1),
+        p.autoExpiry ?? true, p.description ?? '', p.isActive ?? true, p.isPopular ?? false
+      ]);
       const idx = fallbackPlans.findIndex(x => x.id === p.id);
       if (idx > -1) {
         fallbackPlans[idx] = p;
@@ -1032,8 +954,9 @@ app.post('/api/plans', async (req, res) => {
       }
       saveSandboxData();
       return res.json({ success: true, plan: p });
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon plans write error:', err.message);
+    }
   }
   const idx = fallbackPlans.findIndex(x => x.id === p.id);
   if (idx > -1) {
@@ -1047,15 +970,15 @@ app.post('/api/plans', async (req, res) => {
 
 app.delete('/api/plans/:id', async (req, res) => {
   const id = req.params.id;
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      await deleteDoc(doc(db, 'internet_plans', id));
+      await pgPool.query('DELETE FROM internet_plans WHERE id = $1', [id]);
       fallbackPlans = fallbackPlans.filter((p) => p.id !== id);
       saveSandboxData();
       return res.json({ success: true });
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon plans delete error:', err.message);
+    }
   }
   fallbackPlans = fallbackPlans.filter((p) => p.id !== id);
   saveSandboxData();
@@ -1064,156 +987,139 @@ app.delete('/api/plans/:id', async (req, res) => {
 
 // PAYMENTS VERIFICATION REQUESTS ROUTINGS
 app.get('/api/payments', async (req, res) => {
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      const snapshot = await getDocs(collection(db, 'payment_requests'));
-      const payments = snapshot.docs.map(docSnap => {
-        const row = docSnap.data();
-        return {
-          id: row.id || docSnap.id,
-          customerName: row.customer_name || row.customerName,
-          customerPhone: row.customer_phone || row.customerPhone,
-          customerEmail: row.customer_email || row.customerEmail || undefined,
-          planId: row.plan_id || row.planId,
-          planName: row.plan_name || row.planName,
-          planPrice: Number(row.plan_price ?? row.planPrice),
-          screenshotUrl: row.screenshot_url || row.screenshotUrl || undefined,
-          reference: row.reference,
-          status: row.status,
-          timestamp: row.timestamp,
-          whatsappDelivered: row.whatsapp_delivered ?? row.whatsappDelivered ?? false
-        };
-      });
-      payments.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      const result = await pgPool.query('SELECT * FROM payment_requests ORDER BY timestamp DESC');
+      const payments = result.rows.map(row => ({
+        id: row.id,
+        customerName: row.customer_name,
+        customerPhone: row.customer_phone,
+        customerEmail: row.customer_email || undefined,
+        planId: row.plan_id,
+        planName: row.plan_name,
+        planPrice: Number(row.plan_price),
+        screenshotUrl: row.screenshot_url || undefined,
+        reference: row.reference,
+        status: row.status,
+        timestamp: row.timestamp,
+        whatsappDelivered: !!row.whatsapp_delivered
+      }));
       return res.json(payments);
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon payments read error:', err.message);
+    }
   }
   res.json(fallbackPayments);
 });
 
 app.post('/api/payments', async (req, res) => {
   const p = req.body;
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      await setDoc(doc(db, 'payment_requests', p.id), {
-        id: p.id,
-        customer_name: p.customerName,
-        customer_phone: p.customerPhone,
-        customer_email: p.customerEmail || null,
-        plan_id: p.planId,
-        plan_name: p.planName,
-        plan_price: Number(p.planPrice),
-        screenshot_url: p.screenshotUrl || null,
-        reference: p.reference,
-        status: p.status || 'Awaiting Approval',
-        timestamp: p.timestamp || new Date().toISOString(),
-        whatsapp_delivered: p.whatsappDelivered || false
-      });
+      await pgPool.query(`
+        INSERT INTO payment_requests (
+          id, customer_name, customer_phone, customer_email, plan_id, plan_name,
+          plan_price, screenshot_url, reference, status, timestamp, whatsapp_delivered
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ON CONFLICT (id) DO UPDATE SET
+          customer_name = EXCLUDED.customer_name,
+          customer_phone = EXCLUDED.customer_phone,
+          customer_email = EXCLUDED.customer_email,
+          plan_id = EXCLUDED.plan_id,
+          plan_name = EXCLUDED.plan_name,
+          plan_price = EXCLUDED.plan_price,
+          screenshot_url = EXCLUDED.screenshot_url,
+          reference = EXCLUDED.reference,
+          status = EXCLUDED.status,
+          timestamp = EXCLUDED.timestamp,
+          whatsapp_delivered = EXCLUDED.whatsapp_delivered
+      `, [
+        p.id, p.customerName, p.customerPhone, p.customerEmail || null, p.planId, p.planName,
+        Number(p.planPrice), p.screenshotUrl || null, p.reference, p.status || 'Awaiting Approval',
+        p.timestamp || new Date().toISOString(), p.whatsappDelivered || false
+      ]);
       fallbackPayments.unshift(p);
       saveSandboxData();
       return res.json({ success: true, payment: p });
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon payments write error:', err.message);
+    }
   }
   fallbackPayments.unshift(p);
   saveSandboxData();
   res.json({ success: true, payment: p });
 });
 
-// APPROVAL CORE FLOW: GENERATES ACTIVE VOUCHERS AND CUSTOMERS IN APPROVAL FLOW
+// APPROVAL CORE FLOW: GENERATES ACTIVE VOUCHERS AND CUSTOMERS IN NEON CORES
 app.post('/api/payments/approve', async (req, res) => {
   const { id, spawnedVoucherCode, spawnedVoucherId } = req.body;
-  
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
+    const client = await pgPool.connect();
     try {
-      const reqSnap = await getDoc(doc(db, 'payment_requests', id));
-      if (!reqSnap.exists()) {
-        throw new Error('Payment request token not found in database');
+      await client.query('BEGIN');
+      const payRes = await client.query('SELECT * FROM payment_requests WHERE id = $1', [id]);
+      if (payRes.rows.length === 0) {
+        throw new Error('Payment request not found');
       }
-      const payReq = reqSnap.data();
+      const payReq = payRes.rows[0];
+      await client.query('UPDATE payment_requests SET status = $1 WHERE id = $2', ['Approved', id]);
       
-      // Update Payment Request to 'Approved'
-      await updateDoc(doc(db, 'payment_requests', id), { status: 'Approved' });
-      
-      // Fetch target plan to read constraints
-      const planSnap = await getDoc(doc(db, 'internet_plans', payReq.plan_id || payReq.planId));
+      const planRes = await client.query('SELECT * FROM internet_plans WHERE id = $1', [payReq.plan_id]);
       let speed = 8;
       let limitGb = 2.0;
       let hours = 24;
-      
-      if (planSnap.exists()) {
-        const p = planSnap.data();
-        speed = p.speed_limit_mbps ?? 8;
+      if (planRes.rows.length > 0) {
+        const p = planRes.rows[0];
+        speed = Number(p.speed_limit_mbps ?? 8);
         limitGb = Number(p.data_limit_gb ?? 2.0);
-        hours = p.duration_hours ?? 24;
+        hours = Number(p.duration_hours ?? 24);
       }
-
-      // Spawn active voucher pass
-      await setDoc(doc(db, 'active_vouchers', spawnedVoucherId), {
-        id: spawnedVoucherId,
-        code: spawnedVoucherCode,
-        plan_id: payReq.plan_id || payReq.planId,
-        plan_name: payReq.plan_name || payReq.planName,
-        plan_price: Number(payReq.plan_price ?? payReq.planPrice),
-        status: 'active',
-        date_created: new Date().toISOString(),
-        duration_hours: hours,
-        data_limit_gb: limitGb,
-        remaining_data_gb: limitGb,
-        speed_limit_mbps: speed,
-        customer_name: payReq.customer_name || payReq.customerName,
-        customer_phone: payReq.customer_phone || payReq.customerPhone,
-        customer_email: payReq.customer_email || payReq.customerEmail || '',
-        is_multi_device: false,
-        device_limit: 1,
-        notes: 'Auto added upon bank transfer review'
-      });
-
-      // Upsert Customer tracking
-      const custSnap = await getDocs(collection(db, 'customers'));
-      let matchedCustomerRef = custSnap.docs.find(d => {
-        const row = d.data();
-        return row.phone === (payReq.customer_phone || payReq.customerPhone);
-      });
-
-      let custId = matchedCustomerRef ? matchedCustomerRef.id : 'cust_' + Math.floor(Math.random()*10000);
-      let existingSpend = 0;
-      let existingCount = 1;
-      let joinedDate = new Date().toISOString();
-
-      if (matchedCustomerRef) {
-        const cd = matchedCustomerRef.data();
-        existingSpend = Number(cd.total_spend ?? cd.totalSpend ?? 0);
-        existingCount = Number(cd.history_vouchers_count ?? cd.historyVouchersCount ?? 0) + 1;
-        joinedDate = cd.joined_date ?? cd.joinedDate ?? joinedDate;
-      }
-
-      const finalSpend = existingSpend + Number(payReq.plan_price ?? payReq.planPrice);
-
-      await setDoc(doc(db, 'customers', custId), {
-        id: custId,
-        name: payReq.customer_name || payReq.customerName,
-        phone: payReq.customer_phone || payReq.customerPhone,
-        whatsapp: payReq.customer_phone || payReq.customerPhone,
-        active_plan_id: payReq.plan_id || payReq.planId,
-        active_plan_name: payReq.plan_name || payReq.planName,
-        expiry_time: new Date(Date.now() + hours * 3600 * 1000).toISOString(),
-        total_spend: finalSpend,
-        history_vouchers_count: existingCount,
-        is_suspended: false,
-        is_blacklisted: false,
-        notes: 'Auto added upon bank transfer review',
-        joined_date: joinedDate
-      });
-
-      saveSandboxData();
+      
+      await client.query(`
+        INSERT INTO active_vouchers (
+          id, code, plan_id, plan_name, plan_price, status, date_created, duration_hours,
+          data_limit_gb, remaining_data_gb, speed_limit_mbps, customer_name, customer_phone,
+          customer_email, notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, $7, $8, $9, $10, $11, $12, $13, $14)
+      `, [
+        spawnedVoucherId, spawnedVoucherCode, payReq.plan_id, payReq.plan_name, Number(payReq.plan_price),
+        'active', hours, limitGb, limitGb, speed, payReq.customer_name, payReq.customer_phone,
+        payReq.customer_email || '', 'Auto added upon bank transfer review'
+      ]);
+      
+      const custRes = await client.query('SELECT * FROM customers WHERE phone = $1', [payReq.customer_phone]);
+      let custId = custRes.rows.length > 0 ? custRes.rows[0].id : 'cust_' + Math.floor(Math.random()*10000);
+      let existingSpend = custRes.rows.length > 0 ? Number(custRes.rows[0].total_spend ?? 0) : 0;
+      let existingCount = custRes.rows.length > 0 ? Number(custRes.rows[0].history_vouchers_count ?? 0) : 0;
+      let joinedDate = custRes.rows.length > 0 ? custRes.rows[0].joined_date : new Date();
+      
+      await client.query(`
+        INSERT INTO customers (
+          id, name, phone, whatsapp, email, active_plan_id, active_plan_name, expiry_time,
+          total_spend, history_vouchers_count, is_suspended, is_blacklisted, notes, joined_date
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE, FALSE, $11, $12)
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          active_plan_id = EXCLUDED.active_plan_id,
+          active_plan_name = EXCLUDED.active_plan_name,
+          expiry_time = EXCLUDED.expiry_time,
+          total_spend = EXCLUDED.total_spend,
+          history_vouchers_count = EXCLUDED.history_vouchers_count,
+          notes = EXCLUDED.notes
+      `, [
+        custId, payReq.customer_name, payReq.customer_phone, payReq.customer_phone, payReq.customer_email || '',
+        payReq.plan_id, payReq.plan_name, new Date(Date.now() + hours * 3600 * 1000).toISOString(),
+        existingSpend + Number(payReq.plan_price), existingCount + 1, 'Auto added upon bank transfer review', joinedDate
+      ]);
+      
+      await client.query('COMMIT');
+      client.release();
       return res.json({ success: true });
-    } catch (err) {
-      }
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      client.release();
+      console.error('Neon payment approve error:', err.message);
+    }
   }
 
   // Backup Manual In-Memory/Fallback workflow
@@ -1265,19 +1171,19 @@ app.post('/api/payments/approve', async (req, res) => {
       });
     }
   }
+  saveSandboxData();
   res.json({ success: true });
 });
 
 app.post('/api/payments/reject', async (req, res) => {
   const { id } = req.body;
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      await updateDoc(doc(db, 'payment_requests', id), { status: 'Rejected' });
-      saveSandboxData();
+      await pgPool.query('UPDATE payment_requests SET status = $1 WHERE id = $2', ['Rejected', id]);
       return res.json({ success: true });
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon payment reject error:', err.message);
+    }
   }
   const idx = fallbackPayments.findIndex((x) => x.id === id);
   if (idx > -1) {
@@ -1289,73 +1195,80 @@ app.post('/api/payments/reject', async (req, res) => {
 
 // ACTIVE VOUCHERS GENERAL
 app.get('/api/vouchers', async (req, res) => {
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      const snapshot = await getDocs(collection(db, 'active_vouchers'));
-      const vouchers = snapshot.docs.map(docSnap => {
-        const row = docSnap.data();
-        return {
-          id: row.id || docSnap.id,
-          code: row.code,
-          planId: row.plan_id || row.planId,
-          planName: row.plan_name || row.planName,
-          planPrice: Number(row.plan_price ?? row.planPrice),
-          status: row.status,
-          dateCreated: row.date_created || row.dateCreated,
-          durationHours: Number(row.duration_hours ?? row.durationHours),
-          dataLimitGb: Number(row.data_limit_gb ?? row.dataLimitGb ?? 0),
-          remainingDataGb: Number(row.remaining_data_gb ?? row.remainingDataGb ?? 0),
-          speedLimitMbps: Number(row.speed_limit_mbps ?? row.speedLimitMbps),
-          customerName: row.customer_name || row.customerName || undefined,
-          customerPhone: row.customer_phone || row.customerPhone || undefined,
-          customerEmail: row.customer_email || row.customerEmail || undefined,
-          isMultiDevice: row.is_multi_device ?? row.isMultiDevice ?? false,
-          deviceLimit: row.device_limit ?? row.deviceLimit ?? 1,
-          notes: row.notes || undefined
-        };
-      });
-      vouchers.sort((a,b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime());
+      const result = await pgPool.query('SELECT * FROM active_vouchers ORDER BY date_created DESC');
+      const vouchers = result.rows.map(row => ({
+        id: row.id,
+        code: row.code,
+        planId: row.plan_id,
+        planName: row.plan_name,
+        planPrice: Number(row.plan_price),
+        status: row.status,
+        dateCreated: row.date_created,
+        durationHours: Number(row.duration_hours),
+        dataLimitGb: Number(row.data_limit_gb ?? 0),
+        remainingDataGb: Number(row.remaining_data_gb ?? 0),
+        speedLimitMbps: Number(row.speed_limit_mbps),
+        customerName: row.customer_name || undefined,
+        customerPhone: row.customer_phone || undefined,
+        customerEmail: row.customer_email || undefined,
+        isMultiDevice: !!row.is_multi_device,
+        deviceLimit: Number(row.device_limit ?? 1),
+        notes: row.notes || undefined
+      }));
       return res.json(vouchers);
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon vouchers read error:', err.message);
+    }
   }
   res.json(fallbackVouchers);
 });
 
 app.post('/api/vouchers', async (req, res) => {
   const v = req.body;
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      await setDoc(doc(db, 'active_vouchers', v.id), {
-        id: v.id,
-        code: v.code,
-        plan_id: v.planId,
-        plan_name: v.planName,
-        plan_price: Number(v.planPrice),
-        status: v.status,
-        date_created: v.dateCreated || new Date().toISOString(),
-        duration_hours: Number(v.durationHours),
-        data_limit_gb: Number(v.dataLimitGb ?? 0),
-        remaining_data_gb: Number(v.remainingDataGb ?? 0),
-        speed_limit_mbps: Number(v.speedLimitMbps),
-        customer_name: v.customerName || null,
-        customer_phone: v.customerPhone || null,
-        customer_email: v.customerEmail || null,
-        is_multi_device: v.isMultiDevice || false,
-        device_limit: v.deviceLimit || 1,
-        notes: v.notes || null
-      });
+      await pgPool.query(`
+        INSERT INTO active_vouchers (
+          id, code, plan_id, plan_name, plan_price, status, date_created, duration_hours,
+          data_limit_gb, remaining_data_gb, speed_limit_mbps, customer_name, customer_phone,
+          customer_email, is_multi_device, device_limit, notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        ON CONFLICT (id) DO UPDATE SET
+          code = EXCLUDED.code,
+          plan_id = EXCLUDED.plan_id,
+          plan_name = EXCLUDED.plan_name,
+          plan_price = EXCLUDED.plan_price,
+          status = EXCLUDED.status,
+          date_created = EXCLUDED.date_created,
+          duration_hours = EXCLUDED.duration_hours,
+          data_limit_gb = EXCLUDED.data_limit_gb,
+          remaining_data_gb = EXCLUDED.remaining_data_gb,
+          speed_limit_mbps = EXCLUDED.speed_limit_mbps,
+          customer_name = EXCLUDED.customer_name,
+          customer_phone = EXCLUDED.customer_phone,
+          customer_email = EXCLUDED.customer_email,
+          is_multi_device = EXCLUDED.is_multi_device,
+          device_limit = EXCLUDED.device_limit,
+          notes = EXCLUDED.notes
+      `, [
+        v.id, v.code, v.planId, v.planName, Number(v.planPrice), v.status,
+        v.dateCreated || new Date().toISOString(), Number(v.durationHours), Number(v.dataLimitGb ?? 0),
+        Number(v.remainingDataGb ?? 0), Number(v.speedLimitMbps), v.customerName || null,
+        v.customerPhone || null, v.customerEmail || null, v.isMultiDevice || false, v.deviceLimit || 1, v.notes || null
+      ]);
       const idx = fallbackVouchers.findIndex(x => x.id === v.id);
       if (idx > -1) {
         fallbackVouchers[idx] = v;
       } else {
         fallbackVouchers.unshift(v);
       }
+      saveSandboxData();
       return res.json({ success: true, voucher: v });
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon vouchers write error:', err.message);
+    }
   }
   const idx = fallbackVouchers.findIndex(x => x.id === v.id);
   if (idx > -1) {
@@ -1369,56 +1282,59 @@ app.post('/api/vouchers', async (req, res) => {
 
 // CUSTOMERS MANAGEMENT ROUTINGS
 app.get('/api/customers', async (req, res) => {
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      const snapshot = await getDocs(collection(db, 'customers'));
-      const customers = snapshot.docs.map(docSnap => {
-        const row = docSnap.data();
-        return {
-          id: row.id || docSnap.id,
-          name: row.name,
-          phone: row.phone,
-          whatsapp: row.whatsapp || '',
-          activePlanId: row.active_plan_id || row.activePlanId || undefined,
-          activePlanName: row.active_plan_name || row.activePlanName || undefined,
-          expiryTime: row.expiry_time || row.expiryTime || undefined,
-          totalSpend: Number(row.total_spend ?? row.totalSpend ?? 0),
-          historyVouchersCount: Number(row.history_vouchers_count ?? row.historyVouchersCount ?? 0),
-          isSuspended: row.is_suspended ?? row.isSuspended ?? false,
-          isBlacklisted: row.is_blacklisted ?? row.isBlacklisted ?? false,
-          notes: row.notes ?? '',
-          joinedDate: row.joined_date || row.joinedDate
-        };
-      });
-      customers.sort((a,b) => new Date(b.joinedDate).getTime() - new Date(a.joinedDate).getTime());
-      return res.json(customers);
-    } catch (err) {
-      }
+      const result = await pgPool.query('SELECT * FROM customers ORDER BY joined_date DESC, id DESC');
+      const customersList = result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+        whatsapp: row.whatsapp || '',
+        activePlanId: row.active_plan_id || undefined,
+        activePlanName: row.active_plan_name || undefined,
+        expiryTime: row.expiry_time || undefined,
+        totalSpend: Number(row.total_spend ?? 0),
+        historyVouchersCount: Number(row.history_vouchers_count ?? 0),
+        isSuspended: !!row.is_suspended,
+        isBlacklisted: !!row.is_blacklisted,
+        notes: row.notes ?? '',
+        joinedDate: row.joined_date
+      }));
+      return res.json(customersList);
+    } catch (err: any) {
+      console.error('Neon customers read error:', err.message);
+    }
   }
   res.json(fallbackCustomers);
 });
 
 app.post('/api/customers', async (req, res) => {
   const c = req.body;
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      await setDoc(doc(db, 'customers', c.id), {
-        id: c.id,
-        name: c.name,
-        phone: c.phone,
-        whatsapp: c.whatsapp || '',
-        active_plan_id: c.activePlanId || '',
-        active_plan_name: c.activePlanName || '',
-        expiry_time: c.expiryTime || '',
-        total_spend: Number(c.totalSpend ?? 0),
-        history_vouchers_count: Number(c.historyVouchersCount ?? 0),
-        is_suspended: !!c.isSuspended,
-        is_blacklisted: !!c.isBlacklisted,
-        notes: c.notes || '',
-        joined_date: c.joinedDate || new Date().toISOString()
-      });
+      await pgPool.query(`
+        INSERT INTO customers (
+          id, name, phone, whatsapp, active_plan_id, active_plan_name, expiry_time,
+          total_spend, history_vouchers_count, is_suspended, is_blacklisted, notes, joined_date
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          phone = EXCLUDED.phone,
+          whatsapp = EXCLUDED.whatsapp,
+          active_plan_id = EXCLUDED.active_plan_id,
+          active_plan_name = EXCLUDED.active_plan_name,
+          expiry_time = EXCLUDED.expiry_time,
+          total_spend = EXCLUDED.total_spend,
+          history_vouchers_count = EXCLUDED.history_vouchers_count,
+          is_suspended = EXCLUDED.is_suspended,
+          is_blacklisted = EXCLUDED.is_blacklisted,
+          notes = EXCLUDED.notes,
+          joined_date = EXCLUDED.joined_date
+      `, [
+        c.id, c.name, c.phone, c.whatsapp || '', c.activePlanId || '', c.activePlanName || '',
+        c.expiryTime || '', Number(c.totalSpend ?? 0), Number(c.historyVouchersCount ?? 0),
+        !!c.isSuspended, !!c.isBlacklisted, c.notes || '', c.joinedDate || new Date().toISOString()
+      ]);
       const idx = fallbackCustomers.findIndex(x => x.id === c.id);
       if (idx > -1) {
         fallbackCustomers[idx] = c;
@@ -1427,8 +1343,9 @@ app.post('/api/customers', async (req, res) => {
       }
       saveSandboxData();
       return res.json({ success: true, customer: c });
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon customers write error:', err.message);
+    }
   }
   const idx = fallbackCustomers.findIndex(x => x.id === c.id);
   if (idx > -1) {
@@ -1442,153 +1359,159 @@ app.post('/api/customers', async (req, res) => {
 
 // ACTIVE SESSIONS ROUTINGS
 app.get('/api/sessions', async (req, res) => {
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      const snapshot = await getDocs(collection(db, 'active_sessions'));
-      const sessions = snapshot.docs.map(docSnap => {
-        const row = docSnap.data();
-        return {
-          id: row.id || docSnap.id,
-          customerName: row.customer_name || row.customerName,
-          ipAddress: row.ip_address || row.ipAddress,
-          macAddress: row.mac_address || row.macAddress,
-          deviceType: row.device_type || row.deviceType,
-          dataUsedGb: Number(row.data_used_gb ?? row.dataUsedGb ?? 0),
-          uploadSpeedMbps: Number(row.upload_speed_mbps ?? row.uploadSpeedMbps ?? 0),
-          downloadSpeedMbps: Number(row.download_speed_mbps ?? row.downloadSpeedMbps ?? 0),
-          connectedDuration: row.connected_duration || row.connectedDuration,
-          voucherCode: row.voucher_code || row.voucherCode
-        };
-      });
+      const result = await pgPool.query('SELECT * FROM active_sessions');
+      const sessions = result.rows.map(row => ({
+        id: row.id,
+        customerName: row.customer_name,
+        ipAddress: row.ip_address,
+        macAddress: row.mac_address,
+        deviceType: row.device_type,
+        dataUsedGb: Number(row.data_used_gb ?? 0),
+        uploadSpeedMbps: Number(row.upload_speed_mbps ?? 0),
+        downloadSpeedMbps: Number(row.download_speed_mbps ?? 0),
+        connectedDuration: row.connected_duration,
+        voucherCode: row.voucher_code
+      }));
       return res.json(sessions);
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon sessions read error:', err.message);
+    }
   }
   res.json(fallbackSessions);
 });
 
 app.post('/api/sessions/disconnect', async (req, res) => {
   const { id } = req.body;
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      await deleteDoc(doc(db, 'active_sessions', id));
+      await pgPool.query('DELETE FROM active_sessions WHERE id = $1', [id]);
       fallbackSessions = fallbackSessions.filter((s) => s.id !== id);
+      saveSandboxData();
       return res.json({ success: true });
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon sessions delete error:', err.message);
+    }
   }
   fallbackSessions = fallbackSessions.filter((s) => s.id !== id);
+  saveSandboxData();
   res.json({ success: true });
 });
 
 // WHATSAPP OUTGOING MESSAGE LOGS
 app.get('/api/message-logs', async (req, res) => {
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      const snapshot = await getDocs(collection(db, 'whatsapp_message_logs'));
-      const logs = snapshot.docs.map(docSnap => {
-        const row = docSnap.data();
-        return {
-          id: row.id || docSnap.id,
-          recipientName: row.recipient_name || row.recipientName,
-          recipientPhone: row.recipient_phone || row.recipientPhone,
-          messageType: row.message_type || row.messageType,
-          content: row.content,
-          status: row.status,
-          timestamp: row.timestamp,
-          planName: row.plan_name || row.planName || undefined,
-          voucherCode: row.voucher_code || row.voucherCode || undefined
-        };
-      });
-      logs.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      const result = await pgPool.query('SELECT * FROM whatsapp_message_logs ORDER BY timestamp DESC');
+      const logs = result.rows.map(row => ({
+        id: row.id,
+        recipientName: row.recipient_name,
+        recipientPhone: row.recipient_phone,
+        messageType: row.message_type,
+        content: row.content,
+        status: row.status,
+        timestamp: row.timestamp,
+        planName: row.plan_name || undefined,
+        voucherCode: row.voucher_code || undefined
+      }));
       return res.json(logs);
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon logs read error:', err.message);
+    }
   }
   res.json(fallbackMessageLogs);
 });
 
 app.post('/api/message-logs', async (req, res) => {
   const m = req.body;
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      await setDoc(doc(db, 'whatsapp_message_logs', m.id), {
-        id: m.id,
-        recipient_name: m.recipientName,
-        recipient_phone: m.recipientPhone,
-        message_type: m.messageType,
-        content: m.content,
-        status: m.status || 'Delivered',
-        timestamp: m.timestamp || new Date().toISOString(),
-        plan_name: m.planName || null,
-        voucher_code: m.voucherCode || null
-      });
+      await pgPool.query(`
+        INSERT INTO whatsapp_message_logs (
+          id, recipient_name, recipient_phone, message_type, content, status, timestamp, plan_name, voucher_code
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (id) DO UPDATE SET
+          recipient_name = EXCLUDED.recipient_name,
+          recipient_phone = EXCLUDED.recipient_phone,
+          message_type = EXCLUDED.message_type,
+          content = EXCLUDED.content,
+          status = EXCLUDED.status,
+          timestamp = EXCLUDED.timestamp,
+          plan_name = EXCLUDED.plan_name,
+          voucher_code = EXCLUDED.voucher_code
+      `, [
+        m.id, m.recipientName, m.recipientPhone, m.messageType, m.content, m.status || 'Delivered',
+        m.timestamp || new Date().toISOString(), m.planName || null, m.voucherCode || null
+      ]);
       fallbackMessageLogs.unshift(m);
+      saveSandboxData();
       return res.json({ success: true, log: m });
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon logs write error:', err.message);
+    }
   }
   fallbackMessageLogs.unshift(m);
+  saveSandboxData();
   res.json({ success: true, log: m });
 });
 
 // OPERATOR CONFIGS (ANNOUNCEMENTS AND SAAS LEVEL TIERS)
 app.get('/api/operator', async (req, res) => {
-  let announcement = fallbackAnnouncement;
-  let saasTier = fallbackSaaSTier;
-
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      const snapshot = await getDocs(collection(db, 'system_config'));
-      snapshot.forEach(docSnap => {
-        const row = docSnap.data();
+      const result = await pgPool.query('SELECT * FROM system_config');
+      let announcement = fallbackAnnouncement;
+      let saasTier = fallbackSaaSTier;
+      result.rows.forEach(row => {
         if (row.key === 'saas_announcement') announcement = row.value;
         if (row.key === 'saas_tier') saasTier = row.value;
       });
-    } catch (err) {
-      }
+      return res.json({ announcement, saasTier });
+    } catch (err: any) {
+      console.error('Neon operator config read error:', err.message);
+    }
   }
-  res.json({ announcement, saasTier });
+  res.json({ announcement: fallbackAnnouncement, saasTier: fallbackSaaSTier });
 });
 
 app.post('/api/operator/announcement', async (req, res) => {
   const { announcement } = req.body;
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      await setDoc(doc(db, 'system_config', 'saas_announcement'), {
-        key: 'saas_announcement',
-        value: announcement
-      });
+      await pgPool.query(`
+        INSERT INTO system_config (key, value) VALUES ($1, $2)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+      `, ['saas_announcement', announcement]);
       fallbackAnnouncement = announcement;
+      saveSandboxData();
       return res.json({ success: true });
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon announcement config write error:', err.message);
+    }
   }
   fallbackAnnouncement = announcement;
+  saveSandboxData();
   res.json({ success: true });
 });
 
 app.post('/api/operator/saas-tier', async (req, res) => {
   const { saasTier } = req.body;
-  {
-  // Neon-first logic is active above
+  if (neonActive && pgPool) {
     try {
-      await setDoc(doc(db, 'system_config', 'saas_tier'), {
-        key: 'saas_tier',
-        value: saasTier
-      });
+      await pgPool.query(`
+        INSERT INTO system_config (key, value) VALUES ($1, $2)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+      `, ['saas_tier', saasTier]);
       fallbackSaaSTier = saasTier;
+      saveSandboxData();
       return res.json({ success: true });
-    } catch (err) {
-      }
+    } catch (err: any) {
+      console.error('Neon saas-tier config write error:', err.message);
+    }
   }
   fallbackSaaSTier = saasTier;
+  saveSandboxData();
   res.json({ success: true });
 });
 

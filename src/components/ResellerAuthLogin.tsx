@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Wifi, Key, AlertTriangle, Sparkles, Send, ShieldCheck, UserPlus, ArrowLeft, ArrowRight, MapPin, Phone, Mail } from 'lucide-react';
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 interface ResellerAuthLoginProps {
   onSuccess: (email: string, user?: any) => void;
   onCancel: () => void;
@@ -42,7 +44,7 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
 
     setLoading(true);
     try {
-      const res = await fetch('/api/reseller/login', {
+      const res = await fetch(`${API_BASE}/api/reseller/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password })
@@ -110,7 +112,7 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
 
     setLoading(true);
     try {
-      const res = await fetch('/api/reseller/register', {
+      const res = await fetch(`${API_BASE}/api/reseller/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
