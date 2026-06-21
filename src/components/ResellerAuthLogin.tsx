@@ -59,11 +59,12 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
       }
     } catch (err: any) {
       console.warn('API error, executing client-side Firestore connection bypass:', err);
+      const cleanEmail = email.trim().toLowerCase();
+
+      let foundLocal: any = null;
       try {
         const { doc, getDoc } = await import('firebase/firestore');
         const { db } = await import('../firebase');
-        const cleanEmail = email.trim().toLowerCase();
-
         const regDocRef = doc(db, 'reseller_registrations', cleanEmail);
         const regDocSnap = await getDoc(regDocRef);
         if (regDocSnap.exists()) {
@@ -77,18 +78,18 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
             return;
           }
         }
-        
-        // Local state fallback if not registered on cloud Firestore
-        const listStr = localStorage.getItem('fallback_registrations') || '[]';
-        const list = JSON.parse(listStr);
-        const foundLocal = list.find((u: any) => u.email_address?.toLowerCase() === cleanEmail && u.password === password);
-        if (foundLocal) {
-          onSuccess(email.trim(), foundLocal);
-        } else {
-          setError('No account found under this email. Register a new administrator account below.');
-        }
-      } catch (fallbackErr: any) {
-        setError(`Database connection failed: ${fallbackErr.message || fallbackErr}`);
+      } catch (firebaseErr: any) {
+        console.warn('⚠️ Firestore auth bypass failed, checking browser localStorage:', firebaseErr.message);
+      }
+
+      // Local state fallback
+      const listStr = localStorage.getItem('fallback_registrations') || '[]';
+      const list = JSON.parse(listStr);
+      foundLocal = list.find((u: any) => u.email_address?.toLowerCase() === cleanEmail && u.password === password);
+      if (foundLocal) {
+        onSuccess(email.trim(), foundLocal);
+      } else {
+        setError('No account found under this email. Register a new administrator account below.');
       }
     } finally {
       setLoading(false);
@@ -188,7 +189,6 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
           created_at: new Date().toISOString()
         };
 
-        // Save straight to real Cloud Firestore reseller_registrations collection!
         await setDoc(regDocRef, newReg);
 
         // Also save initial profile so they instantly have editable settings synced to cloud
@@ -222,8 +222,30 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
           onSuccess(regEmail.trim(), newReg);
         }, 1200);
       } catch (fallbackErr: any) {
-        console.error('❌ Direct client-side Firestore registration failed:', fallbackErr);
-        setError(`Database connection failed: ${fallbackErr.message || fallbackErr}`);
+        console.warn('⚠️ Cloud Firestore write failed, falling back to browser localStorage sandbox:', fallbackErr);
+        const newReg = {
+          id: Date.now(),
+          first_name: regFirstName.trim(),
+          last_name: regLastName.trim(),
+          business_name: regBusinessName.trim(),
+          business_address: regBusinessAddress.trim(),
+          email_address: cleanRegEmail,
+          whatsapp_number: regWhatsapp.trim(),
+          password: regPassword,
+          status: 'Active',
+          created_at: new Date().toISOString()
+        };
+
+        // Maintain local storage record as local confirmation
+        const listStr = localStorage.getItem('fallback_registrations') || '[]';
+        const list = JSON.parse(listStr);
+        list.push(newReg);
+        localStorage.setItem('fallback_registrations', JSON.stringify(list));
+
+        setSuccessMsg('🎉 Account registered successfully in local browser sandbox!');
+        setTimeout(() => {
+          onSuccess(regEmail.trim(), newReg);
+        }, 1200);
       }
     } finally {
       setLoading(false);
