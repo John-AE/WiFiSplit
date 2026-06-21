@@ -3,33 +3,20 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import pg from 'pg';
-import { initializeApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  doc, 
-  getDoc, 
-  getDocs, 
-  setDoc, 
-  deleteDoc, 
-  updateDoc, 
-  collection
-} from 'firebase/firestore';
-import firebaseConfig from './firebase-applet-config.json';
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-const PORT = 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
-// Neon PostgreSQL Connection Pools
 const { Pool } = pg;
 let pgPool: pg.Pool | null = null;
 let neonActive = false;
 let neonErrorMsg = '';
 
-// Temporary fallback cache for newly registered resellers if PG is offline
+// Temporary fallback cache for reseller registrations when PG is offline
 let fallbackRegistrations: any[] = [];
 
 if (process.env.DATABASE_URL) {
@@ -47,14 +34,14 @@ if (process.env.DATABASE_URL) {
 
 async function initializePostgres() {
   if (!pgPool) {
-    console.log('⚠️ DATABASE_URL not set in environment or loaded. Dual database is active with SQLite/Firebase and Memory fallbacks.');
+    console.log('⚠️ DATABASE_URL not set or Postgres unavailable. Running with in-memory fallback only.');
     return;
   }
+
+  const client = await pgPool.connect();
   try {
-    const client = await pgPool.connect();
-    console.log('⚡ Connected to Neon PostgreSQL Database! Checking schemas...');
-    
-    // Create reseller registrations SQL table schema
+    console.log('⚡ Connected to Neon PostgreSQL Database! Creating schemas...');
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS reseller_registrations (
         id SERIAL PRIMARY KEY,
@@ -69,25 +56,186 @@ async function initializePostgres() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reseller_profiles (
+        id VARCHAR(255) PRIMARY KEY,
+        business_name VARCHAR(255),
+        logo_emoji VARCHAR(10),
+        logo_bg_color VARCHAR(20),
+        phone VARCHAR(100),
+        whatsapp_number VARCHAR(100),
+        location TEXT,
+        currency VARCHAR(10) DEFAULT 'NGN',
+        timezone VARCHAR(50) DEFAULT 'Africa/Lagos',
+        router_type VARCHAR(50) DEFAULT 'Starlink',
+        router_json JSONB,
+        coverage_area TEXT,
+        bank_name VARCHAR(100),
+        bank_account_no VARCHAR(100),
+        bank_account_name VARCHAR(255),
+        payment_instructions TEXT,
+        whatsapp_provider VARCHAR(50) DEFAULT 'Meta Cloud API',
+        whatsapp_api_key TEXT,
+        email_alerts_enabled BOOLEAN DEFAULT TRUE,
+        admin_alert_email VARCHAR(255)
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS internet_plans (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255),
+        price INTEGER,
+        data_limit_gb NUMERIC,
+        duration_hours INTEGER,
+        speed_limit_mbps INTEGER,
+        device_limit INTEGER DEFAULT 1,
+        validity_period_days INTEGER DEFAULT 1,
+        auto_expiry BOOLEAN DEFAULT TRUE,
+        description TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        is_popular BOOLEAN DEFAULT FALSE
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payment_requests (
+        id VARCHAR(255) PRIMARY KEY,
+        customer_name VARCHAR(255),
+        customer_phone VARCHAR(100),
+        customer_email VARCHAR(255),
+        plan_id VARCHAR(255),
+        plan_name VARCHAR(255),
+        plan_price INTEGER,
+        screenshot_url TEXT,
+        reference VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'Awaiting Approval',
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        whatsapp_delivered BOOLEAN DEFAULT FALSE
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS active_vouchers (
+        id VARCHAR(255) PRIMARY KEY,
+        code VARCHAR(255) UNIQUE,
+        plan_id VARCHAR(255),
+        plan_name VARCHAR(255),
+        plan_price INTEGER,
+        status VARCHAR(50) DEFAULT 'active',
+        date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        date_used TIMESTAMP,
+        date_expired TIMESTAMP,
+        duration_hours INTEGER,
+        data_limit_gb NUMERIC,
+        remaining_data_gb NUMERIC,
+        speed_limit_mbps INTEGER,
+        customer_name VARCHAR(255),
+        customer_phone VARCHAR(100),
+        customer_email VARCHAR(255),
+        payment_reference VARCHAR(255),
+        is_multi_device BOOLEAN DEFAULT FALSE,
+        device_limit INTEGER DEFAULT 1,
+        notes TEXT
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255),
+        phone VARCHAR(100),
+        whatsapp VARCHAR(100),
+        email VARCHAR(255),
+        active_plan_id VARCHAR(255),
+        active_plan_name VARCHAR(255),
+        expiry_time TIMESTAMP,
+        total_spend INTEGER DEFAULT 0,
+        history_vouchers_count INTEGER DEFAULT 0,
+        is_suspended BOOLEAN DEFAULT FALSE,
+        is_blacklisted BOOLEAN DEFAULT FALSE,
+        notes TEXT,
+        joined_date DATE DEFAULT CURRENT_DATE
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS active_sessions (
+        id VARCHAR(255) PRIMARY KEY,
+        customer_name VARCHAR(255),
+        ip_address VARCHAR(100),
+        mac_address VARCHAR(100),
+        device_type VARCHAR(255),
+        data_used_gb NUMERIC DEFAULT 0,
+        upload_speed_mbps NUMERIC DEFAULT 0,
+        download_speed_mbps NUMERIC DEFAULT 0,
+        connected_duration VARCHAR(50),
+        voucher_code VARCHAR(255)
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_message_logs (
+        id VARCHAR(255) PRIMARY KEY,
+        recipient_name VARCHAR(255),
+        recipient_phone VARCHAR(100),
+        message_type VARCHAR(50),
+        content TEXT,
+        status VARCHAR(50) DEFAULT 'Delivered',
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        plan_name VARCHAR(255),
+        voucher_code VARCHAR(255)
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS system_config (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT
+      );
+    `);
+
     neonActive = true;
-    client.release();
-    console.log('⚡ reseller_registrations schema is synchronized on Neon.');
+    console.log('⚡ All schemas synchronized on Neon.');
   } catch (err: any) {
     neonActive = false;
     neonErrorMsg = err.message;
     console.error('❌ Neon PostgreSQL initialization failed:', err.message);
+  } finally {
+    client.release();
   }
 }
 
 initializePostgres();
 
-// Initialize Firebase SDK
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+const WHATSAPP_API_KEY = process.env.WHATSAPP_API_KEY || '';
 
-const WHATSAPP_API_KEY = process.env.WHATSAPP_API_KEY || 'w_key_live_da984572h189ad98cf650b91e';
-let dbErrorMsg = '';
+// In-memory fallback state when DB is not connected
+let fallbackBusiness = {
+  id: 'biz_1',
+  businessName: 'Starlink Elite Wi-Fi',
+  logoEmoji: '⚡',
+  logoBgColor: '#059669',
+  phone: '+234 812 345 6789',
+  whatsapp: '+234 812 345 6789',
+  location: 'Yaba, Lagos, Nigeria',
+  currency: 'NGN',
+  timezone: 'Africa/Lagos',
+  routerType: 'Starlink',
+  mikrotikIntegrationPlaceholder: false,
+  coverageArea: 'Yaba Student Hostels & Environs',
+  bankName: 'Opay',
+  bankAccountNo: '8123456789',
+  bankAccountName: 'Yaba Wireless Links',
+  paymentInstructions: 'Transfer exact amount to our Opay account. Specify transaction ref. Vouchers auto-generate post manual confirmation!',
+  whatsappProvider: 'Meta Cloud API',
+  whatsappApiKey: WHATSAPP_API_KEY,
+  emailAlertsEnabled: true,
+  adminAlertEmail: 'johnnybgsu@gmail.com'
+};
+
+// [fallbackPlans ... fallbackMessageLogs trimmed for brevity in this patch — keep existing seed arrays as-is]
 
 // In-Memory Backup collections if Database connection is offline or failed
 let fallbackBusiness = {

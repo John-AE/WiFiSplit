@@ -19,9 +19,6 @@ import OwnerDashboard from './components/OwnerDashboard';
 import LandingPage from './components/LandingPage';
 import ResellerAuthLogin from './components/ResellerAuthLogin';
 import SubscriberAuthLogin from './components/SubscriberAuthLogin';
-import { db } from './firebase';
-import { doc, setDoc, getDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
-
 import { 
   Wifi, HelpCircle, Activity, LayoutGrid, Info, ArrowUpRight, 
   RotateCcw, Sparkles, AlertCircle, RefreshCw, Layers, PhoneCall, ShieldAlert, Smartphone
@@ -110,7 +107,7 @@ export default function App() {
   const [currentSaaSTier, setCurrentSaaSTier] = useState<'starter' | 'growth' | 'business'>('starter');
   const [announcement, setAnnouncement] = useState('');
 
-  // DB Sync helper API calls with Client-Side Firestore Direct Sync Backup
+  // DB Sync helper API calls
   const updateBusinessApi = async (updatedBiz: HotspotBusiness) => {
     try {
       const res = await fetch('/api/business', {
@@ -120,29 +117,68 @@ export default function App() {
       });
       if (!res.ok) throw new Error('API update failed');
     } catch (e) {
-      console.warn('API update business failed. Synchronizing directly to Firestore...', e);
-      try {
-        const emailValue = resellerUser?.email_address || 'biz_1';
-        await setDoc(doc(db, 'reseller_profiles', emailValue.trim().toLowerCase()), {
-          id: emailValue,
-          business_name: updatedBiz.businessName,
-          text_logo: updatedBiz.logoEmoji || '📶',
-          logo_bg_color: updatedBiz.logoBgColor || '#3b82f6',
-          phone: updatedBiz.phone || '',
-          whatsapp_number: updatedBiz.whatsapp || '',
-          location: updatedBiz.location || '',
-          currency: updatedBiz.currency || 'NGN',
-          timezone: updatedBiz.timezone || 'Africa/Lagos',
-          router_type: updatedBiz.routerType || 'Starlink',
-          coverage_area: updatedBiz.coverageArea || '',
-          bank_name: updatedBiz.bankName || 'Access Bank',
-          bank_account_no: updatedBiz.bankAccountNo || '0000000000',
-          bank_account_name: updatedBiz.bankAccountName || '',
-          payment_instructions: updatedBiz.paymentInstructions || ''
-        });
-      } catch (fErr) {
-        console.error('❌ Direct profile write to Firestore failed:', fErr);
-      }
+      console.warn('API update business failed:', e);
+    }
+  };
+
+  const savePlanApi = async (p: HotspotPlan) => {
+    try {
+      const res = await fetch('/api/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(p),
+      });
+      if (!res.ok) throw new Error('API save plan failed');
+    } catch (e) {
+      console.warn('API save plan failed:', e);
+    }
+  };
+
+  const deletePlanApi = async (id: string) => {
+    try {
+      const res = await fetch(`/api/plans/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('API delete plan failed');
+    } catch (e) {
+      console.warn('API delete plan failed:', e);
+    }
+  };
+
+  const saveCustomerApi = async (c: Customer) => {
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(c),
+      });
+      if (!res.ok) throw new Error('API save customer failed');
+    } catch (e) {
+      console.warn('API save customer failed:', e);
+    }
+  };
+
+  const submitPaymentRequestApi = async (pay: PaymentRequest) => {
+    try {
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pay),
+      });
+      if (!res.ok) throw new Error('API submit payment failed');
+    } catch (e) {
+      console.warn('API submit payment failed:', e);
+    }
+  };
+
+  const saveVoucherApi = async (vch: Voucher) => {
+    try {
+      const res = await fetch('/api/vouchers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(vch),
+      });
+      if (!res.ok) throw new Error('API save voucher failed');
+    } catch (e) {
+      console.warn('API save voucher failed:', e);
     }
   };
 

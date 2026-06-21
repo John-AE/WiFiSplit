@@ -58,34 +58,11 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
         setError(data.error || 'Identity verification failed.');
       }
     } catch (err: any) {
-      console.warn('API error, executing client-side Firestore connection bypass:', err);
+      console.warn('API error, checking browser localStorage:', err);
       const cleanEmail = email.trim().toLowerCase();
-
-      let foundLocal: any = null;
-      try {
-        const { doc, getDoc } = await import('firebase/firestore');
-        const { db } = await import('../firebase');
-        const regDocRef = doc(db, 'reseller_registrations', cleanEmail);
-        const regDocSnap = await getDoc(regDocRef);
-        if (regDocSnap.exists()) {
-          const found = regDocSnap.data();
-          if (found.password === password) {
-            console.log(`👤 Reseller ${cleanEmail} authenticated successfully directly via Client-Side Cloud Firestore!`);
-            onSuccess(email.trim(), found);
-            return;
-          } else {
-            setError('Invalid credentials entered.');
-            return;
-          }
-        }
-      } catch (firebaseErr: any) {
-        console.warn('⚠️ Firestore auth bypass failed, checking browser localStorage:', firebaseErr.message);
-      }
-
-      // Local state fallback
       const listStr = localStorage.getItem('fallback_registrations') || '[]';
       const list = JSON.parse(listStr);
-      foundLocal = list.find((u: any) => u.email_address?.toLowerCase() === cleanEmail && u.password === password);
+      const foundLocal = list.find((u: any) => u.email_address?.toLowerCase() === cleanEmail && u.password === password);
       if (foundLocal) {
         onSuccess(email.trim(), foundLocal);
       } else {
@@ -156,97 +133,43 @@ export default function ResellerAuthLogin({ onSuccess, onCancel }: ResellerAuthL
       if (res.ok && data.success) {
         setSuccessMsg('🎉 Account initialized successfully on Relational DB!');
         setTimeout(() => {
-          // Log user in automatically post-registration
           onSuccess(regEmail.trim(), data.user);
         }, 1200);
       } else {
         setError(data.error || 'Registration failed. Check parameters.');
       }
     } catch (err: any) {
-      console.warn('API register error, saving directly to Live Cloud Firestore Database:', err);
-      try {
-        const { doc, getDoc, setDoc } = await import('firebase/firestore');
-        const { db } = await import('../firebase');
-        const cleanRegEmail = regEmail.trim().toLowerCase();
+      console.warn('API unreachable, falling back to browser localStorage sandbox:', err);
+      const cleanRegEmail = regEmail.trim().toLowerCase();
 
-        const regDocRef = doc(db, 'reseller_registrations', cleanRegEmail);
-        const regDocSnap = await getDoc(regDocRef);
-        if (regDocSnap.exists()) {
-          setError('An account with this email address already exists on Google Firestore cloud DB.');
-          return;
-        }
-
-        const newReg = {
-          id: Date.now(),
-          first_name: regFirstName.trim(),
-          last_name: regLastName.trim(),
-          business_name: regBusinessName.trim(),
-          business_address: regBusinessAddress.trim(),
-          email_address: cleanRegEmail,
-          whatsapp_number: regWhatsapp.trim(),
-          password: regPassword,
-          status: 'Active',
-          created_at: new Date().toISOString()
-        };
-
-        await setDoc(regDocRef, newReg);
-
-        // Also save initial profile so they instantly have editable settings synced to cloud
-        const profileDocRef = doc(db, 'reseller_profiles', cleanRegEmail);
-        await setDoc(profileDocRef, {
-          id: cleanRegEmail,
-          business_name: regBusinessName.trim() || 'My Hotspot Network',
-          text_logo: '📶',
-          logo_bg_color: '#3b82f6',
-          phone: regWhatsapp.trim() || '',
-          whatsapp_number: regWhatsapp.trim() || '',
-          location: regBusinessAddress.trim() || '',
-          currency: 'NGN',
-          timezone: 'Africa/Lagos',
-          router_type: 'Starlink',
-          coverage_area: regBusinessAddress.trim() || '',
-          bank_name: 'Access Bank',
-          bank_account_no: '0000000000',
-          bank_account_name: `${regFirstName.trim()} ${regLastName.trim()}`.trim(),
-          payment_instructions: 'Transfer to listed bank account, upload screenshot for automatic voucher code validation.'
-        });
-
-        // Maintain local storage record as local confirmation
-        const listStr = localStorage.getItem('fallback_registrations') || '[]';
-        const list = JSON.parse(listStr);
-        list.push(newReg);
-        localStorage.setItem('fallback_registrations', JSON.stringify(list));
-
-        setSuccessMsg('🎉 Account registered successfully directly inside Live Cloud Firestore!');
-        setTimeout(() => {
-          onSuccess(regEmail.trim(), newReg);
-        }, 1200);
-      } catch (fallbackErr: any) {
-        console.warn('⚠️ Cloud Firestore write failed, falling back to browser localStorage sandbox:', fallbackErr);
-        const newReg = {
-          id: Date.now(),
-          first_name: regFirstName.trim(),
-          last_name: regLastName.trim(),
-          business_name: regBusinessName.trim(),
-          business_address: regBusinessAddress.trim(),
-          email_address: cleanRegEmail,
-          whatsapp_number: regWhatsapp.trim(),
-          password: regPassword,
-          status: 'Active',
-          created_at: new Date().toISOString()
-        };
-
-        // Maintain local storage record as local confirmation
-        const listStr = localStorage.getItem('fallback_registrations') || '[]';
-        const list = JSON.parse(listStr);
-        list.push(newReg);
-        localStorage.setItem('fallback_registrations', JSON.stringify(list));
-
-        setSuccessMsg('🎉 Account registered successfully in local browser sandbox!');
-        setTimeout(() => {
-          onSuccess(regEmail.trim(), newReg);
-        }, 1200);
+      const listStr = localStorage.getItem('fallback_registrations') || '[]';
+      const list = JSON.parse(listStr);
+      const exists = list.some((u: any) => u.email_address?.toLowerCase() === cleanRegEmail);
+      if (exists) {
+        setError('An account with this email address already exists in local storage.');
+        return;
       }
+
+      const newReg = {
+        id: Date.now(),
+        first_name: regFirstName.trim(),
+        last_name: regLastName.trim(),
+        business_name: regBusinessName.trim(),
+        business_address: regBusinessAddress.trim(),
+        email_address: cleanRegEmail,
+        whatsapp_number: regWhatsapp.trim(),
+        password: regPassword,
+        status: 'Active',
+        created_at: new Date().toISOString()
+      };
+
+      list.push(newReg);
+      localStorage.setItem('fallback_registrations', JSON.stringify(list));
+
+      setSuccessMsg('🎉 Account registered successfully in local browser sandbox!');
+      setTimeout(() => {
+        onSuccess(regEmail.trim(), newReg);
+      }, 1200);
     } finally {
       setLoading(false);
     }
