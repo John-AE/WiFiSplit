@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "server.ts": {
+      "runtime": "@vercel/node@5"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/server.ts"
+    }
+  ]
+}

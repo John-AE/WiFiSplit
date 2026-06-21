@@ -1515,7 +1515,11 @@ app.post('/api/operator/saas-tier', async (req, res) => {
   res.json({ success: true });
 });
 
-// Vite middleware & Static SPA configuration assets
+// Export the Express app for Vercel serverless runtime
+export { app };
+export default app;
+
+// Vite dev middleware + standalone server (local dev only — not used on Vercel)
 async function serveApp() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -1526,7 +1530,7 @@ async function serveApp() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
@@ -1536,4 +1540,8 @@ async function serveApp() {
   });
 }
 
-serveApp();
+// Only start the standalone HTTP server when running directly (not imported by Vercel)
+if (process.env.VERCEL !== '1') {
+  serveApp();
+}
+
