@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Wifi, ShieldAlert, Sparkles, Check, Send } from 'lucide-react';
+import { Wifi, ShieldAlert, Sparkles, Send } from 'lucide-react';
 
 interface SubscriberAuthLoginProps {
   onSuccess: (email: string) => void;
@@ -12,7 +12,9 @@ export default function SubscriberAuthLogin({ onSuccess, onCancel }: SubscriberA
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -26,29 +28,60 @@ export default function SubscriberAuthLogin({ onSuccess, onCancel }: SubscriberA
     }
 
     setLoading(true);
-    setTimeout(() => {
-      // Validate credentials
-      if (email.trim().toLowerCase() === 'johnamaka2@gmail.com' && password.trim() === 'password123') {
-        setLoading(false);
+    try {
+      const res = await fetch(`${API_BASE}/api/subscriber/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (data.success) {
         onSuccess(email.trim());
       } else {
-        setLoading(false);
-        setError('Invalid subscriber credentials. Check email or password123.');
+        setError(data.error || 'Login failed.');
       }
-    }, 600);
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleQuickFill = () => {
-    setEmail('johnamaka2@gmail.com');
-    setPassword('password123');
-    setError('');
+  const handleRegister = async () => {
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter email and password.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/subscriber/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: email.split('@')[0],
+          phone: '',
+          email,
+          password
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        onSuccess(email.trim());
+      } else {
+        setError(data.error || 'Registration failed.');
+      }
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[75vh] py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div id="subscriber-auth-card" className="max-w-md w-full space-y-8 bg-white border border-slate-200/85 rounded-3xl p-8 shadow-xl relative overflow-hidden">
         
-        {/* Abstract Deco background orb */}
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-36 h-36 bg-brand-50 rounded-full blur-3xl pointer-events-none opacity-80" />
         <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-36 h-36 bg-emerald-50 rounded-full blur-3xl pointer-events-none opacity-80" />
 
@@ -60,7 +93,7 @@ export default function SubscriberAuthLogin({ onSuccess, onCancel }: SubscriberA
             Subscriber Client Portal
           </h2>
           <p className="text-xs text-slate-400 font-semibold max-w-sm mx-auto">
-            Log in with your hotspot credentials to manage active passes, buy tickets or request high-speed vouchers.
+            Log in with your account credentials to manage active passes, buy tickets or request high-speed vouchers.
           </p>
         </div>
 
@@ -82,21 +115,21 @@ export default function SubscriberAuthLogin({ onSuccess, onCancel }: SubscriberA
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="johnamaka2@gmail.com"
+                placeholder="you@example.com"
                 className="block w-full px-4 py-3 border border-slate-200 rounded-xl text-xs bg-slate-50/50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium transition-all"
               />
             </div>
 
             <div>
               <label htmlFor="subscriber-password" className="block text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1.5">
-                Portal Password
+                Password
               </label>
               <input
                 id="subscriber-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
+                placeholder="Enter your password"
                 className="block w-full px-4 py-3 border border-slate-200 rounded-xl text-xs bg-slate-50/50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium transition-all"
               />
             </div>
@@ -115,39 +148,21 @@ export default function SubscriberAuthLogin({ onSuccess, onCancel }: SubscriberA
               disabled={loading}
               className="flex-1 py-3 px-4 bg-brand-500 hover:bg-brand-600 active:scale-95 text-slate-950 font-black rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 focus:outline-none shadow-sm shadow-brand-500/10 disabled:opacity-50"
             >
-              {loading ? (
-                <span>Authenticating...</span>
-              ) : (
-                <>
-                  <span>Sign In</span>
-                  <Send className="w-3.5 h-3.5" />
-                </>
-              )}
+              {loading ? <span>Loading...</span> : <>Sign In</>}
             </button>
           </div>
         </form>
 
-        {/* Demo Fast Account Quickfill box */}
-        <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl space-y-3 mt-6 text-left relative z-10">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-brand-500" /> Default Sandbox Accounts
-            </span>
-            <button
-              onClick={handleQuickFill}
-              type="button"
-              className="text-[10px] font-extrabold text-brand-600 bg-brand-50 border border-brand-200 px-2.5 py-1 rounded-lg hover:bg-brand-100 transition-colors"
-            >
-              ⚡ Fill John B Credentials
-            </button>
-          </div>
-          <div className="text-[11px] text-slate-500 space-y-1 font-semibold leading-relaxed">
-            <p>Name: <span className="text-slate-800">John B</span></p>
-            <p>Email: <span className="text-slate-800">johnamaka2@gmail.com</span></p>
-            <p>Default Password: <span className="text-slate-800 font-mono">password123</span></p>
-          </div>
+        <div className="pt-4 border-t border-slate-200">
+          <p className="text-[10px] text-slate-500 text-center mb-2">First time? Register instead</p>
+          <button
+            onClick={handleRegister}
+            disabled={loading}
+            className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl text-xs transition-colors disabled:opacity-50"
+          >
+            Create Subscriber Account
+          </button>
         </div>
-
       </div>
     </div>
   );

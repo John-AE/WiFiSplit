@@ -432,6 +432,17 @@ async function initializePostgres() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS subscribers (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255),
+        phone VARCHAR(100),
+        email VARCHAR(255) UNIQUE,
+        password VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     neonActive = true;
     console.log('⚡ All schemas synchronized on Neon.');
   } catch (err: any) {
@@ -471,6 +482,7 @@ let fallbackBusiness = {
   adminAlertEmail: 'johnnybgsu@gmail.com'
 };
 let fallbackRegistrations: any[] = [];
+let fallbackSubscribers: any[] = [];
 
 let fallbackPlans = [
   {
@@ -833,7 +845,8 @@ function saveSandboxData() {
       fallbackSessions,
       fallbackMessageLogs,
       fallbackAnnouncement,
-      fallbackSaaSTier
+      fallbackSaaSTier,
+      fallbackSubscribers
     };
     fs.writeFileSync(SANDBOX_FILE_PATH, JSON.stringify(payload, null, 2), 'utf8');
     console.log('💾 Server persistent database synchronized successfully: db_sandbox.json');
@@ -857,6 +870,7 @@ function loadSandboxData() {
       if (data.fallbackMessageLogs) fallbackMessageLogs = data.fallbackMessageLogs;
       if (data.fallbackAnnouncement) fallbackAnnouncement = data.fallbackAnnouncement;
       if (data.fallbackSaaSTier) fallbackSaaSTier = data.fallbackSaaSTier;
+      if (data.fallbackSubscribers) fallbackSubscribers = data.fallbackSubscribers;
       console.log(`📂 Server restored state successfully from persistent db_sandbox.json! (${fallbackRegistrations.length} registrations loaded)`);
     } else {
       saveSandboxData();
@@ -1047,6 +1061,153 @@ app.post('/api/reseller/logout', (req, res) => {
     sameSite: 'lax',
   });
   return res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// SUBSCRIBER REGISTRATION ENDPOINT
+const subscriberRegisterSchema = z.object({
+  name: z.string().min(1).max(255),
+  phone: z.string().min(10).max(20),
+  email: z.string().email(),
+  password: z.string().min(8).max(100),
+});
+
+app.post('/api/subscriber/register', validate(subscriberRegisterSchema), async (req, res) => {
+  const { name, phone, email, password } = req.body;
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  if (neonActive && pgPool) {
+    try {
+      const result = await pgPool.query(
+        `INSERT INTO subscribers (name, phone, email, password)
+         VALUES ($1, $2, $3, $4) RETURNING id, name, phone, email`,
+        [name, phone, email, passwordHash]
+      );
+      console.log(`🎉 Subscriber ${email} registered successfully!`);
+      return res.json({ success: true, user: result.rows[0] });
+    } catch (err: any) {
+      console.error('❌ Subscriber registration error:', err.message);
+      if (err.message.includes('unique constraint') || err.message.includes('already exists')) {
+        return res.status(400).json({ error: 'An account with this email already exists.' });
+      }
+      return res.status(500).json({ error: `Database error: ${err.message}` });
+    }
+  } else {
+    const exists = (global as any).fallbackSubscribers?.some((s: any) => s.email?.toLowerCase() === email.toLowerCase());
+    if (exists) {
+      return res.status(400).json({ error: 'An account with this email already exists.' });
+    }
+    const newSub = {
+      id: Date.now(),
+      name,
+      phone,
+      email,
+      password: passwordHash,
+    };
+    if (!((global as any).fallbackSubscribers)) (global as any).fallbackSubscribers = [];
+    (global as any).fallbackSubscribers.push(newSub);
+    return res.json({ success: true, user: { id: newSub.id, name, phone, email } });
+  }
+});
+
+// SUBSCRIBER LOGIN ENDPOINT
+const subscriberLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+app.post('/api/subscriber/login', validate(subscriberLoginSchema), async (req, res) => {
+  const { email, password } = req.body;
+
+  if (neonActive && pgPool) {
+    try {
+      const result = await pgPool.query(
+        `SELECT * FROM subscribers WHERE email = $1`,
+        [email]
+      );
+      if (result.rows.length > 0) {
+        const sub = result.rows[0];
+        const passwordMatch = await bcrypt.compare(password, sub.password);
+        if (passwordMatch) {
+          const token = jwt.sign(
+            { id: sub.id, email: sub.email, name: sub.name, role: 'subscriber' },
+            JWT_SECRET,
+            { expiresIn: JWT_EXPIRES_IN }
+          );
+          res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          });
+          const { password: _, ...subWithoutPassword } = sub;
+          return res.json({ success: true, user: subWithoutPassword });
+        }
+      }
+      return res.status(401).json({ error: 'Invalid credentials.' });
+    } catch (err: any) {
+      console.error('❌ Subscriber login error:', err.message);
+      return res.status(500).json({ error: `Database error: ${err.message}` });
+    }
+  } else {
+    const subs = (global as any).fallbackSubscribers || [];
+    const found = subs.find((s: any) => s.email === email);
+    if (found && await bcrypt.compare(password, found.password)) {
+      const token = jwt.sign(
+        { id: found.id, email: found.email, name: found.name, role: 'subscriber' },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
+      );
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+      const { password: _, ...subWithoutPassword } = found;
+      return res.json({ success: true, user: subWithoutPassword });
+    }
+    return res.status(401).json({ error: 'Invalid credentials.' });
+  }
+});
+
+// SUBSCRIBER LOGOUT ENDPOINT
+app.post('/api/subscriber/logout', (req, res) => {
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+  });
+  return res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// GET CURRENT SUBSCRIBER ENDPOINT
+app.get('/api/subscriber/me', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    if (neonActive && pgPool) {
+      const result = await pgPool.query(
+        `SELECT id, name, phone, email, created_at FROM subscribers WHERE id = $1`,
+        [userId]
+      );
+      if (result.rows.length > 0) {
+        return res.json({ success: true, user: result.rows[0] });
+      }
+    } else {
+      const found = fallbackSubscribers.find((s: any) => s.id === userId);
+      if (found) {
+        const { password: _, ...subWithoutPassword } = found;
+        return res.json({ success: true, user: subWithoutPassword });
+      }
+    }
+    return res.status(404).json({ error: 'User not found' });
+  } catch (err: any) {
+    console.error('❌ Get current subscriber error:', err.message);
+    return res.status(500).json({ error: 'Failed to get user' });
+  }
 });
 
 // GET CURRENT USER ENDPOINT
