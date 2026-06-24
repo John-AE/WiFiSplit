@@ -18,7 +18,7 @@ app.use(cookieParser());
 app.use(morgan('dev'));
 
 // Serve static files
-const distClientPath = path.join(process.cwd(), 'dist', 'client');
+const distClientPath = path.join(process.cwd(), 'dist');
 app.use(express.static(distClientPath, { maxAge: '1d' }));
 app.get('*', (req, res) => {
   const indexPath = path.join(distClientPath, 'index.html');
