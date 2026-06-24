@@ -18,11 +18,12 @@ app.use(cookieParser());
 app.use(morgan('dev'));
 
 // Serve static files
+import fs from 'fs';
 const distClientPath = path.join(process.cwd(), 'dist');
 app.use(express.static(distClientPath, { maxAge: '1d' }));
 app.get('*', (req, res) => {
   const indexPath = path.join(distClientPath, 'index.html');
-  if (require('fs').existsSync(indexPath)) {
+  if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
     res.status(404).send('Frontend not built. Run npm run build.');
@@ -1104,7 +1105,7 @@ app.post('/api/subscriber/register', validate(subscriberRegisterSchema), async (
       return res.status(500).json({ error: `Database error: ${err.message}` });
     }
   } else {
-    const exists = (global as any).fallbackSubscribers?.some((s: any) => s.email?.toLowerCase() === email.toLowerCase());
+    const exists = fallbackSubscribers?.some((s: any) => s.email?.toLowerCase() === email.toLowerCase());
     if (exists) {
       return res.status(400).json({ error: 'An account with this email already exists.' });
     }
@@ -1115,8 +1116,7 @@ app.post('/api/subscriber/register', validate(subscriberRegisterSchema), async (
       email,
       password: passwordHash,
     };
-    if (!((global as any).fallbackSubscribers)) (global as any).fallbackSubscribers = [];
-    (global as any).fallbackSubscribers.push(newSub);
+    fallbackSubscribers.push(newSub);
     return res.json({ success: true, user: { id: newSub.id, name, phone, email } });
   }
 });
@@ -1161,7 +1161,7 @@ app.post('/api/subscriber/login', validate(subscriberLoginSchema), async (req, r
       return res.status(500).json({ error: `Database error: ${err.message}` });
     }
   } else {
-    const subs = (global as any).fallbackSubscribers || [];
+    const subs = fallbackSubscribers || [];
     const found = subs.find((s: any) => s.email === email);
     if (found && await bcrypt.compare(password, found.password)) {
       const token = jwt.sign(
