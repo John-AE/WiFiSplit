@@ -17,6 +17,15 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(morgan('dev'));
 
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(process.cwd(), 'dist', 'client');
+  app.use(express.static(distPath, { maxAge: '1d' }));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
 // Enable CORS for cross-origin frontend-to-backend communication
 app.use((req, res, next) => {
   const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:3000'];
