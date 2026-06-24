@@ -197,7 +197,7 @@ export default function App() {
         const statusData = await statusRes.json();
         setDbStatusInfo(statusData);
 
-        if (statusData.neonActive || statusData.firebaseActive) {
+        if (statusData.neonActive) {
           const safeFetchJson = async (url: string) => {
             const r = await fetch(url);
             const rct = r.headers.get('content-type');

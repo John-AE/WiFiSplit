@@ -3,17 +3,30 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import pg from 'pg';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import cookieParser from 'cookie-parser';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
+app.use(morgan('dev'));
 
 // Enable CORS for cross-origin frontend-to-backend communication
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGINS || '*');
+  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:3000'];
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Credentials', 'true');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -21,6 +34,221 @@ app.use((req, res, next) => {
 });
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const JWT_EXPIRES_IN = '7d';
+
+// Environment validation
+function validateEnv() {
+  const required = ['JWT_SECRET'];
+  const optional = ['DATABASE_URL', 'ALLOWED_ORIGINS', 'VITE_API_URL'];
+  const missing = required.filter(key => !process.env[key]);
+  
+  if (missing.length > 0) {
+    console.warn(`⚠️  Missing required environment variables: ${missing.join(', ')}`);
+    if (process.env.NODE_ENV === 'production') {
+      console.error('❌ Cannot start in production without required env vars');
+      process.exit(1);
+    }
+  }
+  
+  if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'dev-secret-change-in-production') {
+    console.error('❌ JWT_SECRET must be set to a secure random value in production!');
+    process.exit(1);
+  }
+  
+  optional.forEach(key => {
+    if (!process.env[key]) {
+      console.warn(`⚠️  Optional environment variable not set: ${key}`);
+    }
+  });
+  
+  console.log('✅ Environment validation passed');
+}
+
+validateEnv();
+
+// Rate Limiting
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // limit each IP to 10 requests per windowMs for auth endpoints
+  message: { error: 'Too many authentication attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs for general API
+  message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply general API rate limiting
+app.use('/api/', apiLimiter);
+
+// Zod Validation Schemas
+const registerSchema = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  businessName: z.string().min(1).max(255),
+  businessAddress: z.string().min(1).max(500),
+  emailAddress: z.string().email(),
+  whatsappNumber: z.string().min(10).max(20),
+  password: z.string().min(8).max(100),
+});
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+const businessSchema = z.object({
+  id: z.string().optional(),
+  businessName: z.string().min(1).max(255).optional(),
+  logoEmoji: z.string().max(10).optional(),
+  logoBgColor: z.string().max(20).optional(),
+  phone: z.string().max(100).optional(),
+  whatsapp: z.string().max(100).optional(),
+  location: z.string().max(500).optional(),
+  currency: z.enum(['NGN', 'USD', 'KES', 'GHS', 'ZAR']).optional(),
+  timezone: z.string().max(50).optional(),
+  routerType: z.enum(['Starlink', 'MikroTik', 'TP-Link', 'Huawei 4G/5G', 'Other']).optional(),
+  coverageArea: z.string().max(500).optional(),
+  bankName: z.string().max(100).optional(),
+  bankAccountNo: z.string().max(100).optional(),
+  bankAccountName: z.string().max(255).optional(),
+  paymentInstructions: z.string().max(1000).optional(),
+  whatsappProvider: z.enum(['Meta Cloud API', 'Twilio', 'Termii', 'UltraMsg']).optional(),
+  whatsappApiKey: z.string().optional(),
+  emailAlertsEnabled: z.boolean().optional(),
+  adminAlertEmail: z.string().email().optional().or(z.literal('')),
+});
+
+const planSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(255),
+  price: z.number().int().positive(),
+  dataLimitGb: z.number().nonnegative(),
+  durationHours: z.number().int().positive(),
+  speedLimitMbps: z.number().int().positive(),
+  deviceLimit: z.number().int().positive(),
+  validityPeriodDays: z.number().int().positive(),
+  autoExpiry: z.boolean(),
+  description: z.string().max(1000).optional(),
+  isActive: z.boolean(),
+  isPopular: z.boolean().optional(),
+});
+
+const paymentSchema = z.object({
+  id: z.string(),
+  customerName: z.string().min(1).max(255),
+  customerPhone: z.string().min(10).max(20),
+  customerEmail: z.string().email().optional().nullable(),
+  planId: z.string(),
+  planName: z.string().min(1).max(255),
+  planPrice: z.number().int().positive(),
+  screenshotUrl: z.string().url().optional().nullable(),
+  reference: z.string().min(1).max(255),
+  status: z.enum(['Requested', 'Awaiting Approval', 'Approved', 'Rejected']).optional(),
+  timestamp: z.string().optional(),
+  whatsappDelivered: z.boolean().optional(),
+});
+
+const approvePaymentSchema = z.object({
+  id: z.string(),
+  spawnedVoucherCode: z.string().optional(),
+  spawnedVoucherId: z.string().optional(),
+});
+
+const rejectPaymentSchema = z.object({
+  id: z.string(),
+});
+
+const voucherSchema = z.object({
+  id: z.string(),
+  code: z.string().min(1).max(50),
+  planId: z.string(),
+  planName: z.string().min(1).max(255),
+  planPrice: z.number().int().positive(),
+  status: z.enum(['pending_payment', 'active', 'used', 'expired', 'suspended']),
+  dateCreated: z.string().optional(),
+  durationHours: z.number().int().positive(),
+  dataLimitGb: z.number().nonnegative(),
+  remainingDataGb: z.number().nonnegative(),
+  speedLimitMbps: z.number().int().positive(),
+  customerName: z.string().max(255).optional().nullable(),
+  customerPhone: z.string().max(20).optional().nullable(),
+  customerEmail: z.string().email().optional().nullable(),
+  isMultiDevice: z.boolean().optional(),
+  deviceLimit: z.number().int().positive().optional(),
+  notes: z.string().max(1000).optional().nullable(),
+});
+
+const customerSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(255),
+  phone: z.string().min(10).max(20),
+  whatsapp: z.string().max(20).optional(),
+  activePlanId: z.string().optional().nullable(),
+  activePlanName: z.string().optional().nullable(),
+  expiryTime: z.string().optional().nullable(),
+  totalSpend: z.number().int().nonnegative().optional(),
+  historyVouchersCount: z.number().int().nonnegative().optional(),
+  isSuspended: z.boolean().optional(),
+  isBlacklisted: z.boolean().optional(),
+  notes: z.string().max(1000).optional(),
+  joinedDate: z.string().optional(),
+});
+
+const messageLogSchema = z.object({
+  id: z.string(),
+  recipientName: z.string().min(1).max(255),
+  recipientPhone: z.string().min(10).max(20),
+  messageType: z.enum(['voucher', 'reminder', 'payment_received', 'announcement']),
+  content: z.string().min(1),
+  status: z.enum(['Delivered', 'Failed']).optional(),
+  timestamp: z.string().optional(),
+  planName: z.string().max(255).optional().nullable(),
+  voucherCode: z.string().max(50).optional().nullable(),
+});
+
+const announcementSchema = z.object({
+  announcement: z.string().min(1).max(2000),
+});
+
+const saasTierSchema = z.object({
+  saasTier: z.enum(['starter', 'growth', 'business']),
+});
+
+// Validation middleware factory
+const validate = (schema: z.ZodSchema) => (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const result = schema.safeParse(req.body);
+  if (!result.success) {
+    return res.status(400).json({ error: 'Validation failed', details: result.error.flatten().fieldErrors });
+  }
+  req.body = result.data;
+  next();
+};
+
+// JWT Auth Middleware
+interface AuthRequest extends express.Request {
+  user?: { id: number; email: string; businessName?: string };
+}
+
+const authenticateToken = (req: AuthRequest, res: express.Response, next: express.NextFunction) => {
+  const token = req.cookies?.token;
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; email: string; businessName?: string };
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(403).json({ error: 'Invalid or expired token' });
+  }
+};
 
 const { Pool } = pg;
 let pgPool: pg.Pool | null = null;
@@ -659,7 +887,7 @@ app.get('/api/db-status', (req, res) => {
 });
 
 // RESELLER REGISTRATION ENDPOINT (Neon Postgres connected)
-app.post('/api/reseller/register', async (req, res) => {
+app.post('/api/reseller/register', authLimiter, validate(registerSchema), async (req, res) => {
   const { firstName, lastName, businessName, businessAddress, emailAddress, whatsappNumber, password } = req.body;
   
   if (!emailAddress || !password) {
@@ -667,13 +895,14 @@ app.post('/api/reseller/register', async (req, res) => {
   }
 
   const cleanEmail = emailAddress.trim().toLowerCase();
+  const passwordHash = await bcrypt.hash(password, 12);
 
   if (neonActive && pgPool) {
     try {
       const result = await pgPool.query(
         `INSERT INTO reseller_registrations (first_name, last_name, business_name, business_address, email_address, whatsapp_number, password)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [firstName, lastName, businessName, businessAddress, emailAddress, whatsappNumber, password]
+        [firstName, lastName, businessName, businessAddress, emailAddress, whatsappNumber, passwordHash]
       );
       console.log(`🎉 Reseller ${emailAddress} registered successfully in Neon Postgres database!`);
       return res.json({ success: true, user: result.rows[0] });
@@ -699,7 +928,7 @@ app.post('/api/reseller/register', async (req, res) => {
       business_address: businessAddress || '',
       email_address: cleanEmail,
       whatsapp_number: whatsappNumber || '',
-      password: password,
+      password: passwordHash,
       status: 'Active',
       created_at: new Date().toISOString()
     };
@@ -726,7 +955,7 @@ app.post('/api/reseller/register', async (req, res) => {
 });
 
 // RESELLER LOGIN/AUTH ENDPOINT (Neon Postgres check)
-app.post('/api/reseller/login', async (req, res) => {
+app.post('/api/reseller/login', authLimiter, validate(loginSchema), async (req, res) => {
   const { email, password } = req.body;
   
   if (!email || !password) {
@@ -738,12 +967,36 @@ app.post('/api/reseller/login', async (req, res) => {
   if (neonActive && pgPool) {
     try {
       const result = await pgPool.query(
-        `SELECT * FROM reseller_registrations WHERE LOWER(email_address) = $1 AND password = $2`,
-        [cleanEmail, password]
+        `SELECT * FROM reseller_registrations WHERE LOWER(email_address) = $1`,
+        [cleanEmail]
       );
       if (result.rows.length > 0) {
-        console.log(`👤 Reseller authenticated successfully via Neon database: ${cleanEmail}`);
-        return res.json({ success: true, user: result.rows[0] });
+        const user = result.rows[0];
+        const passwordMatch = await bcrypt.compare(password, user.password);
+        if (passwordMatch) {
+          console.log(`👤 Reseller authenticated successfully via Neon database: ${cleanEmail}`);
+          
+          // Generate JWT token
+          const token = jwt.sign(
+            { id: user.id, email: user.email_address, businessName: user.business_name },
+            JWT_SECRET,
+            { expiresIn: JWT_EXPIRES_IN }
+          );
+          
+          // Set httpOnly cookie
+          res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+          });
+          
+          // Return user without password
+          const { password: _, ...userWithoutPassword } = user;
+          return res.json({ success: true, user: userWithoutPassword });
+        } else {
+          return res.status(401).json({ error: 'Invalid reseller credentials. Please check details or click Register Here.' });
+        }
       } else {
         return res.status(401).json({ error: 'Invalid reseller credentials. Please check details or click Register Here.' });
       }
@@ -754,15 +1007,76 @@ app.post('/api/reseller/login', async (req, res) => {
   } else {
     // Neon not active: check in-memory sandbox fallback
     const found = fallbackRegistrations.find(
-      r => r.email_address?.toLowerCase() === cleanEmail && r.password === password
+      r => r.email_address?.toLowerCase() === cleanEmail
     );
     if (found) {
-      console.log(`👤 Reseller authenticated successfully via Sandbox local offline cache: ${cleanEmail}`);
-      return res.json({ success: true, user: found });
+      const passwordMatch = await bcrypt.compare(password, found.password);
+      if (passwordMatch) {
+        console.log(`👤 Reseller authenticated successfully via Sandbox local offline cache: ${cleanEmail}`);
+        
+        // Generate JWT token
+        const token = jwt.sign(
+          { id: found.id, email: found.email_address, businessName: found.business_name },
+          JWT_SECRET,
+          { expiresIn: JWT_EXPIRES_IN }
+        );
+        
+        // Set httpOnly cookie
+        res.cookie('token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+        
+        // Return user without password
+        const { password: _, ...userWithoutPassword } = found;
+        return res.json({ success: true, user: userWithoutPassword });
+      }
     }
   }
 
   return res.status(401).json({ error: 'Unauthorized Reseller. Check credentials or register first.' });
+});
+
+// LOGOUT ENDPOINT
+app.post('/api/reseller/logout', (req, res) => {
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+  });
+  return res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// GET CURRENT USER ENDPOINT
+app.get('/api/reseller/me', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    if (neonActive && pgPool) {
+      const result = await pgPool.query(
+        `SELECT id, first_name, last_name, business_name, business_address, email_address, whatsapp_number, status, created_at FROM reseller_registrations WHERE id = $1`,
+        [userId]
+      );
+      if (result.rows.length > 0) {
+        return res.json({ success: true, user: result.rows[0] });
+      }
+    } else {
+      const found = fallbackRegistrations.find(r => r.id === userId);
+      if (found) {
+        const { password: _, ...userWithoutPassword } = found;
+        return res.json({ success: true, user: userWithoutPassword });
+      }
+    }
+    return res.status(404).json({ error: 'User not found' });
+  } catch (err: any) {
+    console.error('❌ Get current user error:', err.message);
+    return res.status(500).json({ error: 'Failed to get user' });
+  }
 });
 
 // LIST REGISTERED RESELLERS SECURE MONITORING
@@ -843,7 +1157,7 @@ app.get('/api/business', async (req, res) => {
   res.json(fallbackBusiness);
 });
 
-app.post('/api/business', async (req, res) => {
+app.post('/api/business', validate(businessSchema), async (req, res) => {
   const b = req.body;
   const id = b.id || 'biz_1';
   if (neonActive && pgPool) {
@@ -920,7 +1234,7 @@ app.get('/api/plans', async (req, res) => {
   res.json(fallbackPlans);
 });
 
-app.post('/api/plans', async (req, res) => {
+app.post('/api/plans', validate(planSchema), async (req, res) => {
   const p = req.body;
   if (neonActive && pgPool) {
     try {
@@ -1012,7 +1326,7 @@ app.get('/api/payments', async (req, res) => {
   res.json(fallbackPayments);
 });
 
-app.post('/api/payments', async (req, res) => {
+app.post('/api/payments', validate(paymentSchema), async (req, res) => {
   const p = req.body;
   if (neonActive && pgPool) {
     try {
@@ -1051,7 +1365,7 @@ app.post('/api/payments', async (req, res) => {
 });
 
 // APPROVAL CORE FLOW: GENERATES ACTIVE VOUCHERS AND CUSTOMERS IN NEON CORES
-app.post('/api/payments/approve', async (req, res) => {
+app.post('/api/payments/approve', validate(approvePaymentSchema), async (req, res) => {
   const { id, spawnedVoucherCode, spawnedVoucherId } = req.body;
   if (neonActive && pgPool) {
     const client = await pgPool.connect();
@@ -1175,7 +1489,7 @@ app.post('/api/payments/approve', async (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/payments/reject', async (req, res) => {
+app.post('/api/payments/reject', validate(rejectPaymentSchema), async (req, res) => {
   const { id } = req.body;
   if (neonActive && pgPool) {
     try {
@@ -1225,7 +1539,7 @@ app.get('/api/vouchers', async (req, res) => {
   res.json(fallbackVouchers);
 });
 
-app.post('/api/vouchers', async (req, res) => {
+app.post('/api/vouchers', validate(voucherSchema), async (req, res) => {
   const v = req.body;
   if (neonActive && pgPool) {
     try {
@@ -1308,7 +1622,7 @@ app.get('/api/customers', async (req, res) => {
   res.json(fallbackCustomers);
 });
 
-app.post('/api/customers', async (req, res) => {
+app.post('/api/customers', validate(customerSchema), async (req, res) => {
   const c = req.body;
   if (neonActive && pgPool) {
     try {
@@ -1423,7 +1737,7 @@ app.get('/api/message-logs', async (req, res) => {
   res.json(fallbackMessageLogs);
 });
 
-app.post('/api/message-logs', async (req, res) => {
+app.post('/api/message-logs', validate(messageLogSchema), async (req, res) => {
   const m = req.body;
   if (neonActive && pgPool) {
     try {
@@ -1475,7 +1789,7 @@ app.get('/api/operator', async (req, res) => {
   res.json({ announcement: fallbackAnnouncement, saasTier: fallbackSaaSTier });
 });
 
-app.post('/api/operator/announcement', async (req, res) => {
+app.post('/api/operator/announcement', validate(announcementSchema), async (req, res) => {
   const { announcement } = req.body;
   if (neonActive && pgPool) {
     try {
@@ -1495,7 +1809,7 @@ app.post('/api/operator/announcement', async (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/operator/saas-tier', async (req, res) => {
+app.post('/api/operator/saas-tier', validate(saasTierSchema), async (req, res) => {
   const { saasTier } = req.body;
   if (neonActive && pgPool) {
     try {

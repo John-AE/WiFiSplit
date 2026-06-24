@@ -799,7 +799,7 @@ export default function OwnerDashboard({
                     <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Batch Vol. Qty</label>
                     <select
                       value={bulkQty}
-                      onChange={(e: any) => setBulkQty(Number(e.target.value))}
+                      onChange={(e: any) => setBulkQty(Number(e.target.value) as 10 | 50 | 100 | 500)}
                       className="w-full text-xs border border-slate-200 rounded-lg p-2.5 focus:outline-none"
                     >
                       <option value={10}>10 vouchers</option>
