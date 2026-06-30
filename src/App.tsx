@@ -493,7 +493,7 @@ export default function App() {
                         setBusiness(prev => ({
                           ...prev,
                           businessName: user.business_name || user.businessName || prev.businessName,
-                          phone:                           user.whatsapp_number || user.whatsappNumber || prev.whatsapp,
+                          phone:                           user.whatsapp_number || user.whatsappNumber || prev.phone,
                           location: user.business_address || user.businessAddress || prev.location,
                         }));
                       }
