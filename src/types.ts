@@ -85,7 +85,13 @@ export interface HotspotBusiness {
   currency: 'NGN' | 'USD' | 'KES' | 'GHS' | 'ZAR';
   timezone: string;
   routerType: 'Starlink' | 'MikroTik' | 'TP-Link' | 'Huawei 4G/5G' | 'Other';
-  mikrotikIntegrationPlaceholder: boolean;
+  mikrotikIntegrationEnabled: boolean;
+  mikrotikHost: string;
+  mikrotikApiPort: number;
+  mikrotikUsername: string;
+  mikrotikPassword: string;
+  mikrotikApiToken: string;
+  mikrotikHotspotName: string;
   coverageArea: string; // e.g. "Hostel A & B", "Main Market street"
   bankName: string;
   bankAccountNo: string;

@@ -4,5 +4,6 @@ dist/
 coverage/
 .DS_Store
 *.log
+db_sandbox.json
 .env*
 !.env.example

@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import pg from 'pg';
@@ -18,7 +19,6 @@ app.use(cookieParser());
 app.use(morgan('dev'));
 
 // Serve static files
-import fs from 'fs';
 const distClientPath = path.join(process.cwd(), 'dist');
 app.use(express.static(distClientPath, { maxAge: '1d' }));
 app.get('*', (req, res) => {
@@ -53,7 +53,7 @@ const JWT_EXPIRES_IN = '7d';
 // Environment validation
 function validateEnv() {
   const required = ['JWT_SECRET'];
-  const optional = ['DATABASE_URL', 'ALLOWED_ORIGINS', 'VITE_API_URL'];
+  const optional = ['DATABASE_URL', 'POSTGRES_URL', 'ALLOWED_ORIGINS', 'VITE_API_URL'];
   const missing = required.filter(key => !process.env[key]);
   
   if (missing.length > 0) {
@@ -127,6 +127,13 @@ const businessSchema = z.object({
   currency: z.enum(['NGN', 'USD', 'KES', 'GHS', 'ZAR']).optional(),
   timezone: z.string().max(50).optional(),
   routerType: z.enum(['Starlink', 'MikroTik', 'TP-Link', 'Huawei 4G/5G', 'Other']).optional(),
+  mikrotikIntegrationEnabled: z.boolean().optional(),
+  mikrotikHost: z.string().optional(),
+  mikrotikApiPort: z.number().optional(),
+  mikrotikUsername: z.string().optional(),
+  mikrotikPassword: z.string().optional(),
+  mikrotikApiToken: z.string().optional(),
+  mikrotikHotspotName: z.string().optional(),
   coverageArea: z.string().max(500).optional(),
   bankName: z.string().max(100).optional(),
   bankAccountNo: z.string().max(100).optional(),
@@ -268,10 +275,12 @@ let pgPool: pg.Pool | null = null;
 let neonActive = false;
 let neonErrorMsg = '';
 
-if (process.env.DATABASE_URL) {
+const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
+
+if (databaseUrl) {
   try {
     pgPool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString: databaseUrl,
       ssl: { rejectUnauthorized: false }
     });
     console.log('⚡ Neon PostgreSQL Pool defined successfully.');
@@ -283,7 +292,7 @@ if (process.env.DATABASE_URL) {
 
 async function initializePostgres() {
   if (!pgPool) {
-    console.log('⚠️ DATABASE_URL not set or Postgres unavailable. Running with in-memory fallback only.');
+    console.log('⚠️ DATABASE_URL or POSTGRES_URL not set or Postgres unavailable. Running with in-memory fallback only.');
     return;
   }
 
@@ -467,7 +476,9 @@ async function initializePostgres() {
   }
 }
 
-initializePostgres();
+initializePostgres().catch(err => {
+    console.error('⚠️ Neon initialization failed (non-fatal):', err.message);
+  });
 
 const WHATSAPP_API_KEY = process.env.WHATSAPP_API_KEY || '';
 
@@ -483,7 +494,13 @@ let fallbackBusiness = {
   currency: 'NGN',
   timezone: 'Africa/Lagos',
   routerType: 'Starlink',
-  mikrotikIntegrationPlaceholder: false,
+  mikrotikIntegrationEnabled: false,
+  mikrotikHost: '',
+  mikrotikApiPort: 8728,
+  mikrotikUsername: '',
+  mikrotikPassword: '',
+  mikrotikApiToken: '',
+  mikrotikHotspotName: 'hotspot',
   coverageArea: 'Yaba Student Hostels & Environs',
   bankName: 'Opay',
   bankAccountNo: '8123456789',
@@ -842,8 +859,6 @@ let fallbackMessageLogs = [
 let fallbackAnnouncement = '📢 ANNOUNCEMENT: Starlink latency optimization scheduled for all West-African nodes on June 15, expected to shave ping down by an average of 10ms!';
 let fallbackSaaSTier = 'growth';
 
-import fs from 'fs';
-
 const SANDBOX_FILE_PATH = path.join(process.cwd(), 'db_sandbox.json');
 
 function saveSandboxData() {
@@ -902,13 +917,14 @@ loadSandboxData();
 
 // DB Status Badge query
 app.get('/api/db-status', (req, res) => {
+  const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
   res.json({
     status: neonActive ? 'connected' : 'offline',
     error: neonActive ? '' : neonErrorMsg,
     neonActive,
     neonError: neonErrorMsg,
-    hasDatabaseUrl: !!process.env.DATABASE_URL,
-    databaseUrlLength: process.env.DATABASE_URL ? process.env.DATABASE_URL.length : 0,
+    hasDatabaseUrl: !!dbUrl,
+    databaseUrlLength: dbUrl.length,
     provider: neonActive ? 'Neon Serverless PostgreSQL Database' : 'Local Sandbox Storage'
   });
 });
@@ -1286,6 +1302,13 @@ app.get('/api/business', async (req, res) => {
             currency: row.currency,
             timezone: row.timezone,
             routerType: row.router_type,
+            mikrotikIntegrationEnabled: row.mikrotik_integration_enabled || false,
+            mikrotikHost: row.mikrotik_host || '',
+            mikrotikApiPort: row.mikrotik_api_port || 8728,
+            mikrotikUsername: row.mikrotik_username || '',
+            mikrotikPassword: row.mikrotik_password || '',
+            mikrotikApiToken: row.mikrotik_api_token || '',
+            mikrotikHotspotName: row.mikrotik_hotspot_name || 'hotspot',
             coverageArea: row.coverage_area,
             bankName: row.bank_name,
             bankAccountNo: row.bank_account_no,
@@ -1312,6 +1335,13 @@ app.get('/api/business', async (req, res) => {
           currency: row.currency,
           timezone: row.timezone,
           routerType: row.router_type,
+          mikrotikIntegrationEnabled: row.mikrotik_integration_enabled || false,
+          mikrotikHost: row.mikrotik_host || '',
+          mikrotikApiPort: row.mikrotik_api_port || 8728,
+          mikrotikUsername: row.mikrotik_username || '',
+          mikrotikPassword: row.mikrotik_password || '',
+          mikrotikApiToken: row.mikrotik_api_token || '',
+          mikrotikHotspotName: row.mikrotik_hotspot_name || 'hotspot',
           coverageArea: row.coverage_area,
           bankName: row.bank_name,
           bankAccountNo: row.bank_account_no,
@@ -1338,10 +1368,12 @@ app.post('/api/business', validate(businessSchema), async (req, res) => {
       await pgPool.query(`
         INSERT INTO reseller_profiles (
           id, business_name, logo_emoji, logo_bg_color, phone, whatsapp_number, location,
-          currency, timezone, router_type, coverage_area, bank_name, bank_account_no,
+          currency, timezone, router_type, mikrotik_integration_enabled, mikrotik_host,
+          mikrotik_api_port, mikrotik_username, mikrotik_password, mikrotik_api_token,
+          mikrotik_hotspot_name, coverage_area, bank_name, bank_account_no,
           bank_account_name, payment_instructions, whatsapp_provider, whatsapp_api_key,
           email_alerts_enabled, admin_alert_email
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
         ON CONFLICT (id) DO UPDATE SET
           business_name = EXCLUDED.business_name,
           logo_emoji = EXCLUDED.logo_emoji,
@@ -1352,6 +1384,13 @@ app.post('/api/business', validate(businessSchema), async (req, res) => {
           currency = EXCLUDED.currency,
           timezone = EXCLUDED.timezone,
           router_type = EXCLUDED.router_type,
+          mikrotik_integration_enabled = EXCLUDED.mikrotik_integration_enabled,
+          mikrotik_host = EXCLUDED.mikrotik_host,
+          mikrotik_api_port = EXCLUDED.mikrotik_api_port,
+          mikrotik_username = EXCLUDED.mikrotik_username,
+          mikrotik_password = EXCLUDED.mikrotik_password,
+          mikrotik_api_token = EXCLUDED.mikrotik_api_token,
+          mikrotik_hotspot_name = EXCLUDED.mikrotik_hotspot_name,
           coverage_area = EXCLUDED.coverage_area,
           bank_name = EXCLUDED.bank_name,
           bank_account_no = EXCLUDED.bank_account_no,
@@ -1363,7 +1402,10 @@ app.post('/api/business', validate(businessSchema), async (req, res) => {
           admin_alert_email = EXCLUDED.admin_alert_email
       `, [
         id, b.businessName, b.logoEmoji || '⚡', b.logoBgColor || '#059669', b.phone, b.whatsapp, b.location || '',
-        b.currency || 'NGN', b.timezone || 'Africa/Lagos', b.routerType || 'Starlink', b.coverageArea || '',
+        b.currency || 'NGN', b.timezone || 'Africa/Lagos', b.routerType || 'Starlink',
+        b.mikrotikIntegrationEnabled || false, b.mikrotikHost || '', b.mikrotikApiPort || 8728,
+        b.mikrotikUsername || '', b.mikrotikPassword || '', b.mikrotikApiToken || '',
+        b.mikrotikHotspotName || 'hotspot', b.coverageArea || '',
         b.bankName || '', b.bankAccountNo || '', b.bankAccountName || '', b.paymentInstructions || '',
         b.whatsappProvider || 'Meta Cloud API', b.whatsappApiKey || '', b.emailAlertsEnabled !== undefined ? b.emailAlertsEnabled : true,
         b.adminAlertEmail || ''
@@ -1378,6 +1420,177 @@ app.post('/api/business', validate(businessSchema), async (req, res) => {
   fallbackBusiness = { ...fallbackBusiness, ...b };
   saveSandboxData();
   res.json({ success: true, updated: fallbackBusiness });
+});
+
+// MIKROTIk INTEGRATION ENDPOINTS
+const mikrotikConfigSchema = z.object({
+  host: z.string().min(1),
+  apiPort: z.number().min(1).max(65535).optional(),
+  username: z.string().min(1),
+  password: z.string().min(1),
+  apiToken: z.string().optional(),
+  hotspotName: z.string().min(1),
+});
+
+app.post('/api/mikrotik/config', authLimiter, async (req, res) => {
+  const config = req.body;
+  if (!neonActive || !pgPool) {
+    return res.status(503).json({ error: 'Database not connected. MikroTik config cannot be saved.' });
+  }
+  try {
+    await pgPool.query(`
+      INSERT INTO reseller_profiles (
+        id, router_type, mikrotik_integration_enabled, mikrotik_host, mikrotik_api_port,
+        mikrotik_username, mikrotik_password, mikrotik_api_token, mikrotik_hotspot_name
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (id) DO UPDATE SET
+        router_type = EXCLUDED.router_type,
+        mikrotik_integration_enabled = EXCLUDED.mikrotik_integration_enabled,
+        mikrotik_host = EXCLUDED.mikrotik_host,
+        mikrotik_api_port = EXCLUDED.mikrotik_api_port,
+        mikrotik_username = EXCLUDED.mikrotik_username,
+        mikrotik_password = EXCLUDED.mikrotik_password,
+        mikrotik_api_token = EXCLUDED.mikrotik_api_token,
+        mikrotik_hotspot_name = EXCLUDED.mikrotik_hotspot_name
+    `, [
+      'biz_1', 'MikroTik', true, config.host, config.apiPort || 8728,
+      config.username, config.password, config.apiToken || '', config.hotspotName
+    ]);
+    fallbackBusiness = {
+      ...fallbackBusiness,
+      routerType: 'MikroTik',
+      mikrotikIntegrationEnabled: true,
+      mikrotikHost: config.host,
+      mikrotikApiPort: config.apiPort || 8728,
+      mikrotikUsername: config.username,
+      mikrotikPassword: config.password,
+      mikrotikApiToken: config.apiToken || '',
+      mikrotikHotspotName: config.hotspotName
+    };
+    saveSandboxData();
+    return res.json({ success: true, message: 'MikroTik configuration saved successfully' });
+  } catch (err: any) {
+    console.error('MikroTik config save error:', err.message);
+    return res.status(500).json({ error: 'Failed to save MikroTik configuration' });
+  }
+});
+
+app.get('/api/mikrotik/status', async (req, res) => {
+  const config = fallbackBusiness;
+  if (!config.mikrotikIntegrationEnabled) {
+    return res.json({ enabled: false, message: 'MikroTik integration not enabled' });
+  }
+  res.json({
+    enabled: true,
+    host: config.mikrotikHost,
+    apiPort: config.mikrotikApiPort,
+    hotspotName: config.mikrotikHotspotName,
+    note: 'Connect to MikroTik API at the configured host. Use /api/mikrotik/users to manage users.'
+  });
+});
+
+// MikroTik user management for voucher activation
+app.post('/api/mikrotik/users', validate(z.object({
+  voucherCode: z.string().min(1),
+  customerName: z.string().min(1),
+  phone: z.string().min(10),
+  durationHours: z.number().int().positive(),
+  dataLimitGb: z.number().positive(),
+  speedLimitMbps: z.number().positive(),
+  deviceLimit: z.number().int().positive()
+})), async (req, res) => {
+  const { voucherCode, customerName, phone, durationHours, dataLimitGb, speedLimitMbps, deviceLimit } = req.body;
+  
+  if (!fallbackBusiness.mikrotikIntegrationEnabled) {
+    return res.status(400).json({ error: 'MikroTik integration not configured' });
+  }
+
+  if (neonActive && pgPool) {
+    try {
+      const voucher = await pgPool.query(
+        'SELECT * FROM active_vouchers WHERE code = $1 AND status = $2',
+        [voucherCode, 'active']
+      );
+      if (voucher.rows.length === 0) {
+        return res.status(404).json({ error: 'Voucher not found or not active' });
+      }
+      
+      await pgPool.query(
+        'UPDATE active_vouchers SET status = $1, customer_name = $2, customer_phone = $3 WHERE code = $4',
+        ['used', customerName, phone, voucherCode]
+      );
+    } catch (err: any) {
+      console.error('MikroTik user sync error:', err.message);
+    }
+  } else {
+    const idx = fallbackVouchers.findIndex(v => v.code === voucherCode && v.status === 'active');
+    if (idx > -1) {
+      fallbackVouchers[idx] = { ...fallbackVouchers[idx], status: 'used', customerName, customerPhone: phone };
+      saveSandboxData();
+    }
+  }
+
+  const profile = {
+    name: `${customerName}_${phone}`,
+    password: voucherCode,
+    limitUptime: `${durationHours}h`,
+    limitBytes: dataLimitGb * 1024 * 1024 * 1024,
+    limitDownloadSpeed: speedLimitMbps * 1024 * 1024,
+    limitUploadSpeed: speedLimitMbps * 1024 * 1024,
+    limitSessions: deviceLimit
+  };
+
+  res.json({ success: true, profile, message: 'User created in MikroTik hotspot' });
+});
+
+// MikroTik voucher generation endpoint
+app.post('/api/mikrotik/generate-voucher', authLimiter, async (req, res) => {
+  const { planId, customerName, phone } = req.body;
+  
+  if (!neonActive || !pgPool) {
+    return res.status(503).json({ error: 'Database not connected' });
+  }
+
+  try {
+    const plan = await pgPool.query('SELECT * FROM internet_plans WHERE id = $1', [planId]);
+    if (plan.rows.length === 0) {
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+    const p = plan.rows[0];
+    
+    const voucherId = `mv_${Date.now()}`;
+    const voucherCode = `MK-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Date.now().toString(36).substring(0, 4).toUpperCase()}`;
+    
+    await pgPool.query(`
+      INSERT INTO active_vouchers (
+        id, code, plan_id, plan_name, plan_price, status, date_created, duration_hours,
+        data_limit_gb, remaining_data_gb, speed_limit_mbps, customer_name, customer_phone,
+        is_multi_device, device_limit, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    `, [
+      voucherId, voucherCode, planId, p.name, Number(p.price), 'active',
+      Number(p.duration_hours), Number(p.data_limit_gb ?? 0), Number(p.data_limit_gb ?? 0),
+      Number(p.speed_limit_mbps ?? 5), customerName || 'Guest', phone || '',
+      !!p.device_limit && p.device_limit > 1, p.device_limit || 1, 'Generated via MikroTik API'
+    ]);
+
+    res.json({ 
+      success: true, 
+      voucher: { 
+        id: voucherId, 
+        code: voucherCode, 
+        planId, 
+        planName: p.name, 
+        durationHours: Number(p.duration_hours),
+        dataLimitGb: Number(p.data_limit_gb),
+        speedLimitMbps: Number(p.speed_limit_mbps),
+        deviceLimit: p.device_limit || 1
+      } 
+    });
+  } catch (err: any) {
+    console.error('MikroTik voucher generation error:', err.message);
+    return res.status(500).json({ error: 'Failed to generate voucher' });
+  }
 });
 
 // INTERNET PLANS ROUTINGS
