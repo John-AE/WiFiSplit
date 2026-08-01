@@ -274,246 +274,221 @@ const { Pool } = pg;
 let pgPool: pg.Pool | null = null;
 let neonActive = false;
 let neonErrorMsg = '';
+let initializationStarted = false;
 
 const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
 
-const createNeonPool = (): pg.Pool | null => {
-  if (!databaseUrl) return null;
+if (databaseUrl) {
   try {
-    const pool = new pg.Pool({
+    pgPool = new Pool({
       connectionString: databaseUrl,
       ssl: { rejectUnauthorized: false },
-      max: 1,
+      connectionTimeoutMillis: 15000,
+      max: 5,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000
+      allowExitOnIdle: true
     });
-    pool.on('error', (err) => {
-      console.error('⚠️ Neon pool error:', err.message);
-    });
-    return pool;
+    console.log('⚡ Neon PostgreSQL Pool defined successfully.');
   } catch (err: any) {
     neonErrorMsg = err.message;
     console.error('❌ Failed to initialize PG client:', err.message);
-    return null;
   }
-};
+}
 
-let initializationPromise: Promise<void> | null = null;
-
-async function initializePostgres(): Promise<void> {
-  if (pgPool && neonActive) return;
+async function initializePostgres() {
+  if (neonActive) return;
+  if (initializationStarted) return;
   
-  if (!databaseUrl) {
-    console.log('⚠️ DATABASE_URL or POSTGRES_URL not set. Running with in-memory fallback only.');
+  initializationStarted = true;
+  
+  if (!pgPool) {
+    console.log('⚠️ DATABASE_URL or POSTGRES_URL not set or Postgres unavailable. Running with in-memory fallback only.');
     return;
   }
 
-  if (!pgPool) {
-    console.log('⚡ Creating Neon PostgreSQL Pool...');
-    pgPool = createNeonPool();
-    if (!pgPool) return;
-  }
-
+  const client = await pgPool.connect();
   try {
-    console.log('⚡ Attempting to connect to Neon PostgreSQL...');
-    const client = await pgPool.connect();
-    try {
-      console.log('⚡ Connected to Neon PostgreSQL Database! Creating schemas...');
+    console.log('⚡ Connected to Neon PostgreSQL Database! Creating schemas...');
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS reseller_registrations (
-          id SERIAL PRIMARY KEY,
-          first_name VARCHAR(100),
-          last_name VARCHAR(100),
-          business_name VARCHAR(255),
-          business_address TEXT,
-          email_address VARCHAR(255) UNIQUE,
-          whatsapp_number VARCHAR(100),
-          password VARCHAR(255),
-          status VARCHAR(50) DEFAULT 'Pending',
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-      `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reseller_registrations (
+        id SERIAL PRIMARY KEY,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        business_name VARCHAR(255),
+        business_address TEXT,
+        email_address VARCHAR(255) UNIQUE,
+        whatsapp_number VARCHAR(100),
+        password VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'Pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS reseller_profiles (
-          id VARCHAR(255) PRIMARY KEY,
-          business_name VARCHAR(255),
-          logo_emoji VARCHAR(10),
-          logo_bg_color VARCHAR(20),
-          phone VARCHAR(100),
-          whatsapp_number VARCHAR(100),
-          location TEXT,
-          currency VARCHAR(10) DEFAULT 'NGN',
-          timezone VARCHAR(50) DEFAULT 'Africa/Lagos',
-          router_type VARCHAR(50) DEFAULT 'Starlink',
-          mikrotik_integration_enabled BOOLEAN DEFAULT FALSE,
-          mikrotik_host VARCHAR(255),
-          mikrotik_api_port INTEGER DEFAULT 8728,
-          mikrotik_username VARCHAR(100),
-          mikrotik_password VARCHAR(255),
-          mikrotik_api_token TEXT,
-          mikrotik_hotspot_name VARCHAR(100) DEFAULT 'hotspot',
-          router_json JSONB,
-          coverage_area TEXT,
-          bank_name VARCHAR(100),
-          bank_account_no VARCHAR(100),
-          bank_account_name VARCHAR(255),
-          payment_instructions TEXT,
-          whatsapp_provider VARCHAR(50) DEFAULT 'Meta Cloud API',
-          whatsapp_api_key TEXT,
-          email_alerts_enabled BOOLEAN DEFAULT TRUE,
-          admin_alert_email VARCHAR(255)
-        );
-      `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reseller_profiles (
+        id VARCHAR(255) PRIMARY KEY,
+        business_name VARCHAR(255),
+        logo_emoji VARCHAR(10),
+        logo_bg_color VARCHAR(20),
+        phone VARCHAR(100),
+        whatsapp_number VARCHAR(100),
+        location TEXT,
+        currency VARCHAR(10) DEFAULT 'NGN',
+        timezone VARCHAR(50) DEFAULT 'Africa/Lagos',
+        router_type VARCHAR(50) DEFAULT 'Starlink',
+        router_json JSONB,
+        coverage_area TEXT,
+        bank_name VARCHAR(100),
+        bank_account_no VARCHAR(100),
+        bank_account_name VARCHAR(255),
+        payment_instructions TEXT,
+        whatsapp_provider VARCHAR(50) DEFAULT 'Meta Cloud API',
+        whatsapp_api_key TEXT,
+        email_alerts_enabled BOOLEAN DEFAULT TRUE,
+        admin_alert_email VARCHAR(255)
+      );
+    `);
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS internet_plans (
-          id VARCHAR(255) PRIMARY KEY,
-          name VARCHAR(255),
-          price INTEGER,
-          data_limit_gb NUMERIC,
-          duration_hours INTEGER,
-          speed_limit_mbps INTEGER,
-          device_limit INTEGER DEFAULT 1,
-          validity_period_days INTEGER DEFAULT 1,
-          auto_expiry BOOLEAN DEFAULT TRUE,
-          description TEXT,
-          is_active BOOLEAN DEFAULT TRUE,
-          is_popular BOOLEAN DEFAULT FALSE
-        );
-      `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS internet_plans (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255),
+        price INTEGER,
+        data_limit_gb NUMERIC,
+        duration_hours INTEGER,
+        speed_limit_mbps INTEGER,
+        device_limit INTEGER DEFAULT 1,
+        validity_period_days INTEGER DEFAULT 1,
+        auto_expiry BOOLEAN DEFAULT TRUE,
+        description TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        is_popular BOOLEAN DEFAULT FALSE
+      );
+    `);
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS payment_requests (
-          id VARCHAR(255) PRIMARY KEY,
-          customer_name VARCHAR(255),
-          customer_phone VARCHAR(100),
-          customer_email VARCHAR(255),
-          plan_id VARCHAR(255),
-          plan_name VARCHAR(255),
-          plan_price INTEGER,
-          screenshot_url TEXT,
-          reference VARCHAR(255),
-          status VARCHAR(50) DEFAULT 'Awaiting Approval',
-          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          whatsapp_delivered BOOLEAN DEFAULT FALSE
-        );
-      `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payment_requests (
+        id VARCHAR(255) PRIMARY KEY,
+        customer_name VARCHAR(255),
+        customer_phone VARCHAR(100),
+        customer_email VARCHAR(255),
+        plan_id VARCHAR(255),
+        plan_name VARCHAR(255),
+        plan_price INTEGER,
+        screenshot_url TEXT,
+        reference VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'Awaiting Approval',
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        whatsapp_delivered BOOLEAN DEFAULT FALSE
+      );
+    `);
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS active_vouchers (
-          id VARCHAR(255) PRIMARY KEY,
-          code VARCHAR(255) UNIQUE,
-          plan_id VARCHAR(255),
-          plan_name VARCHAR(255),
-          plan_price INTEGER,
-          status VARCHAR(50) DEFAULT 'active',
-          date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          date_used TIMESTAMP,
-          date_expired TIMESTAMP,
-          duration_hours INTEGER,
-          data_limit_gb NUMERIC,
-          remaining_data_gb NUMERIC,
-          speed_limit_mbps INTEGER,
-          customer_name VARCHAR(255),
-          customer_phone VARCHAR(100),
-          customer_email VARCHAR(255),
-          payment_reference VARCHAR(255),
-          is_multi_device BOOLEAN DEFAULT FALSE,
-          device_limit INTEGER DEFAULT 1,
-          notes TEXT
-        );
-      `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS active_vouchers (
+        id VARCHAR(255) PRIMARY KEY,
+        code VARCHAR(255) UNIQUE,
+        plan_id VARCHAR(255),
+        plan_name VARCHAR(255),
+        plan_price INTEGER,
+        status VARCHAR(50) DEFAULT 'active',
+        date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        date_used TIMESTAMP,
+        date_expired TIMESTAMP,
+        duration_hours INTEGER,
+        data_limit_gb NUMERIC,
+        remaining_data_gb NUMERIC,
+        speed_limit_mbps INTEGER,
+        customer_name VARCHAR(255),
+        customer_phone VARCHAR(100),
+        customer_email VARCHAR(255),
+        payment_reference VARCHAR(255),
+        is_multi_device BOOLEAN DEFAULT FALSE,
+        device_limit INTEGER DEFAULT 1,
+        notes TEXT
+      );
+    `);
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS customers (
-          id VARCHAR(255) PRIMARY KEY,
-          name VARCHAR(255),
-          phone VARCHAR(100),
-          whatsapp VARCHAR(100),
-          email VARCHAR(255),
-          active_plan_id VARCHAR(255),
-          active_plan_name VARCHAR(255),
-          expiry_time TIMESTAMP,
-          total_spend INTEGER DEFAULT 0,
-          history_vouchers_count INTEGER DEFAULT 0,
-          is_suspended BOOLEAN DEFAULT FALSE,
-          is_blacklisted BOOLEAN DEFAULT FALSE,
-          notes TEXT,
-          joined_date DATE DEFAULT CURRENT_DATE
-        );
-      `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255),
+        phone VARCHAR(100),
+        whatsapp VARCHAR(100),
+        email VARCHAR(255),
+        active_plan_id VARCHAR(255),
+        active_plan_name VARCHAR(255),
+        expiry_time TIMESTAMP,
+        total_spend INTEGER DEFAULT 0,
+        history_vouchers_count INTEGER DEFAULT 0,
+        is_suspended BOOLEAN DEFAULT FALSE,
+        is_blacklisted BOOLEAN DEFAULT FALSE,
+        notes TEXT,
+        joined_date DATE DEFAULT CURRENT_DATE
+      );
+    `);
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS active_sessions (
-          id VARCHAR(255) PRIMARY KEY,
-          customer_name VARCHAR(255),
-          ip_address VARCHAR(100),
-          mac_address VARCHAR(100),
-          device_type VARCHAR(255),
-          data_used_gb NUMERIC DEFAULT 0,
-          upload_speed_mbps NUMERIC DEFAULT 0,
-          download_speed_mbps NUMERIC DEFAULT 0,
-          connected_duration VARCHAR(50),
-          voucher_code VARCHAR(255)
-        );
-      `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS active_sessions (
+        id VARCHAR(255) PRIMARY KEY,
+        customer_name VARCHAR(255),
+        ip_address VARCHAR(100),
+        mac_address VARCHAR(100),
+        device_type VARCHAR(255),
+        data_used_gb NUMERIC DEFAULT 0,
+        upload_speed_mbps NUMERIC DEFAULT 0,
+        download_speed_mbps NUMERIC DEFAULT 0,
+        connected_duration VARCHAR(50),
+        voucher_code VARCHAR(255)
+      );
+    `);
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS whatsapp_message_logs (
-          id VARCHAR(255) PRIMARY KEY,
-          recipient_name VARCHAR(255),
-          recipient_phone VARCHAR(100),
-          message_type VARCHAR(50),
-          content TEXT,
-          status VARCHAR(50) DEFAULT 'Delivered',
-          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          plan_name VARCHAR(255),
-          voucher_code VARCHAR(255)
-        );
-      `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_message_logs (
+        id VARCHAR(255) PRIMARY KEY,
+        recipient_name VARCHAR(255),
+        recipient_phone VARCHAR(100),
+        message_type VARCHAR(50),
+        content TEXT,
+        status VARCHAR(50) DEFAULT 'Delivered',
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        plan_name VARCHAR(255),
+        voucher_code VARCHAR(255)
+      );
+    `);
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS system_config (
-          key VARCHAR(255) PRIMARY KEY,
-          value TEXT
-        );
-      `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS system_config (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT
+      );
+    `);
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS subscribers (
-          id SERIAL PRIMARY KEY,
-          name VARCHAR(255),
-          phone VARCHAR(100),
-          email VARCHAR(255) UNIQUE,
-          password VARCHAR(255),
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-      `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS subscribers (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255),
+        phone VARCHAR(100),
+        email VARCHAR(255) UNIQUE,
+        password VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
-      neonActive = true;
-      neonErrorMsg = '';
-      console.log('⚡ All schemas synchronized on Neon.');
-    } catch (schemaErr: any) {
-      neonActive = false;
-      neonErrorMsg = schemaErr.message;
-      console.error('❌ Neon PostgreSQL schema sync failed:', schemaErr.message);
-    } finally {
-      client.release();
-    }
-  } catch (connErr: any) {
+    neonActive = true;
+    console.log('⚡ All schemas synchronized on Neon.');
+  } catch (err: any) {
     neonActive = false;
-    neonErrorMsg = connErr.message;
-    console.error('❌ Neon PostgreSQL connection failed:', connErr.message);
+    neonErrorMsg = err.message;
+    console.error('❌ Neon PostgreSQL initialization failed:', err.message);
+  } finally {
+    client.release();
   }
 }
 
-async function ensureNeonInitialized(): Promise<void> {
-  if (initializationPromise) return initializationPromise;
-  initializationPromise = initializePostgres();
-  await initializationPromise;
-}
+initializePostgres().catch(err => {
+    console.error('⚠️ Neon initialization failed (non-fatal):', err.message);
+  });
 
 const WHATSAPP_API_KEY = process.env.WHATSAPP_API_KEY || '';
 
@@ -953,7 +928,10 @@ loadSandboxData();
 // DB Status Badge query
 app.get('/api/db-status', async (req, res) => {
   try {
-    await ensureNeonInitialized();
+    if (!neonActive && !initializationStarted && pgPool) {
+      console.log('🔄 DB status check - attempting initialization...');
+      await initializePostgres();
+    }
     const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
     res.json({
       status: neonActive ? 'connected' : 'offline',
@@ -967,31 +945,42 @@ app.get('/api/db-status', async (req, res) => {
   } catch (err: any) {
     res.status(500).json({
       status: 'error',
-      error: err.message,
+      error: err.message || 'Unknown error',
       neonActive: false,
       hasDatabaseUrl: false
     });
   }
 });
 
-// Direct database health test endpoint
+// Direct database health test - tests actual connection
 app.get('/api/db-health', async (req, res) => {
   try {
-    await ensureNeonInitialized();
-    if (!pgPool) {
-      return res.status(503).json({ error: 'DATABASE_URL not configured', hasDatabaseUrl: false });
+    if (!databaseUrl) {
+      return res.status(503).json({ healthy: false, error: 'DATABASE_URL not configured', hasDatabaseUrl: false });
     }
-    const result = await pgPool.query('SELECT 1 as valid');
-    res.json({ healthy: true, dbUrlLength: (process.env.DATABASE_URL || process.env.POSTGRES_URL || '').length });
+    
+    const testPool = new pg.Pool({
+      connectionString: databaseUrl,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000,
+      max: 1
+    });
+    
+    try {
+      await testPool.query('SELECT 1 as test');
+      await testPool.end();
+      res.json({ healthy: true, dbUrlLength: databaseUrl.length });
+    } catch (queryErr: any) {
+      await testPool.end().catch(() => {});
+      res.status(500).json({ healthy: false, error: queryErr.message });
+    }
   } catch (err: any) {
-    res.status(500).json({ healthy: false, error: err.message });
+    res.status(500).json({ healthy: false, error: err.message || 'Connection failed' });
   }
 });
 
 // RESELLER REGISTRATION ENDPOINT (Neon Postgres connected)
 app.post('/api/reseller/register', authLimiter, validate(registerSchema), async (req, res) => {
-  await ensureNeonInitialized();
-  
   const { firstName, lastName, businessName, businessAddress, emailAddress, whatsappNumber, password } = req.body;
   
   if (!emailAddress || !password) {
@@ -1060,8 +1049,6 @@ app.post('/api/reseller/register', authLimiter, validate(registerSchema), async 
 
 // RESELLER LOGIN/AUTH ENDPOINT (Neon Postgres check)
 app.post('/api/reseller/login', authLimiter, validate(loginSchema), async (req, res) => {
-  await ensureNeonInitialized();
-  
   const { email, password } = req.body;
   
   if (!email || !password) {
