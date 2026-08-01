@@ -1,7 +1,6 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
@@ -2272,6 +2271,7 @@ export default app;
 // Vite dev middleware + standalone server (local dev only — not used on Vercel)
 async function serveApp() {
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
