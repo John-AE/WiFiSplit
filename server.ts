@@ -293,12 +293,13 @@ async function initializePostgres() {
     return;
   }
 
-  const client = await pgPool.connect();
+  let client: pg.PoolClient | null = null;
   try {
+    client = await pgPool.connect();
     console.log('⚡ Connected to Neon PostgreSQL Database! Creating schemas...');
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS reseller_registrations (
+    
+    const tables = [
+      `CREATE TABLE IF NOT EXISTS reseller_registrations (
         id SERIAL PRIMARY KEY,
         first_name VARCHAR(100),
         last_name VARCHAR(100),
@@ -309,11 +310,8 @@ async function initializePostgres() {
         password VARCHAR(255),
         status VARCHAR(50) DEFAULT 'Pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS reseller_profiles (
+      )`,
+      `CREATE TABLE IF NOT EXISTS reseller_profiles (
         id VARCHAR(255) PRIMARY KEY,
         business_name VARCHAR(255),
         logo_emoji VARCHAR(10),
@@ -324,6 +322,13 @@ async function initializePostgres() {
         currency VARCHAR(10) DEFAULT 'NGN',
         timezone VARCHAR(50) DEFAULT 'Africa/Lagos',
         router_type VARCHAR(50) DEFAULT 'Starlink',
+        mikrotik_integration_enabled BOOLEAN DEFAULT FALSE,
+        mikrotik_host VARCHAR(255),
+        mikrotik_api_port INTEGER DEFAULT 8728,
+        mikrotik_username VARCHAR(100),
+        mikrotik_password VARCHAR(255),
+        mikrotik_api_token TEXT,
+        mikrotik_hotspot_name VARCHAR(100) DEFAULT 'hotspot',
         router_json JSONB,
         coverage_area TEXT,
         bank_name VARCHAR(100),
@@ -334,11 +339,8 @@ async function initializePostgres() {
         whatsapp_api_key TEXT,
         email_alerts_enabled BOOLEAN DEFAULT TRUE,
         admin_alert_email VARCHAR(255)
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS internet_plans (
+      )`,
+      `CREATE TABLE IF NOT EXISTS internet_plans (
         id VARCHAR(255) PRIMARY KEY,
         name VARCHAR(255),
         price INTEGER,
@@ -351,11 +353,8 @@ async function initializePostgres() {
         description TEXT,
         is_active BOOLEAN DEFAULT TRUE,
         is_popular BOOLEAN DEFAULT FALSE
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS payment_requests (
+      )`,
+      `CREATE TABLE IF NOT EXISTS payment_requests (
         id VARCHAR(255) PRIMARY KEY,
         customer_name VARCHAR(255),
         customer_phone VARCHAR(100),
@@ -368,11 +367,8 @@ async function initializePostgres() {
         status VARCHAR(50) DEFAULT 'Awaiting Approval',
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         whatsapp_delivered BOOLEAN DEFAULT FALSE
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS active_vouchers (
+      )`,
+      `CREATE TABLE IF NOT EXISTS active_vouchers (
         id VARCHAR(255) PRIMARY KEY,
         code VARCHAR(255) UNIQUE,
         plan_id VARCHAR(255),
@@ -393,11 +389,8 @@ async function initializePostgres() {
         is_multi_device BOOLEAN DEFAULT FALSE,
         device_limit INTEGER DEFAULT 1,
         notes TEXT
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS customers (
+      )`,
+      `CREATE TABLE IF NOT EXISTS customers (
         id VARCHAR(255) PRIMARY KEY,
         name VARCHAR(255),
         phone VARCHAR(100),
@@ -412,11 +405,8 @@ async function initializePostgres() {
         is_blacklisted BOOLEAN DEFAULT FALSE,
         notes TEXT,
         joined_date DATE DEFAULT CURRENT_DATE
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS active_sessions (
+      )`,
+      `CREATE TABLE IF NOT EXISTS active_sessions (
         id VARCHAR(255) PRIMARY KEY,
         customer_name VARCHAR(255),
         ip_address VARCHAR(100),
@@ -427,11 +417,8 @@ async function initializePostgres() {
         download_speed_mbps NUMERIC DEFAULT 0,
         connected_duration VARCHAR(50),
         voucher_code VARCHAR(255)
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS whatsapp_message_logs (
+      )`,
+      `CREATE TABLE IF NOT EXISTS whatsapp_message_logs (
         id VARCHAR(255) PRIMARY KEY,
         recipient_name VARCHAR(255),
         recipient_phone VARCHAR(100),
@@ -441,35 +428,39 @@ async function initializePostgres() {
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         plan_name VARCHAR(255),
         voucher_code VARCHAR(255)
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS system_config (
+      )`,
+      `CREATE TABLE IF NOT EXISTS system_config (
         key VARCHAR(255) PRIMARY KEY,
         value TEXT
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS subscribers (
+      )`,
+      `CREATE TABLE IF NOT EXISTS subscribers (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255),
         phone VARCHAR(100),
         email VARCHAR(255) UNIQUE,
         password VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
+      )`
+    ];
+
+    for (const sql of tables) {
+      try {
+        await client.query(sql);
+      } catch (tableErr: any) {
+        console.error('⚠️ Table creation warning:', tableErr.message);
+      }
+    }
 
     neonActive = true;
+    neonErrorMsg = '';
     console.log('⚡ All schemas synchronized on Neon.');
   } catch (err: any) {
     neonActive = false;
     neonErrorMsg = err.message;
     console.error('❌ Neon PostgreSQL initialization failed:', err.message);
+    initializationStarted = false;
   } finally {
-    client.release();
+    if (client) client.release();
   }
 }
 
@@ -915,7 +906,7 @@ loadSandboxData();
 // DB Status Badge query
 app.get('/api/db-status', async (req, res) => {
   try {
-    if (!neonActive && !initializationStarted && pgPool) {
+    if (!neonActive && pgPool) {
       console.log('🔄 DB status check - attempting initialization...');
       await initializePostgres();
     }
@@ -968,6 +959,8 @@ app.get('/api/db-health', async (req, res) => {
 
 // RESELLER REGISTRATION ENDPOINT (Neon Postgres connected)
 app.post('/api/reseller/register', authLimiter, validate(registerSchema), async (req, res) => {
+  await initializePostgres();
+  
   const { firstName, lastName, businessName, businessAddress, emailAddress, whatsappNumber, password } = req.body;
   
   if (!emailAddress || !password) {
@@ -994,48 +987,19 @@ app.post('/api/reseller/register', authLimiter, validate(registerSchema), async 
       return res.status(500).json({ error: `Neon SQL database error: ${err.message}` });
     }
   } else {
-    // Neon not active: use in-memory sandbox fallback
-    const exists = fallbackRegistrations.some(u => u.email_address?.toLowerCase() === cleanEmail);
-    if (exists) {
-      return res.status(400).json({ error: 'An account with this email address already exists in our database.' });
-    }
-
-    const newReg = {
-      id: Date.now(),
-      first_name: firstName || '',
-      last_name: lastName || '',
-      business_name: businessName || '',
-      business_address: businessAddress || '',
-      email_address: cleanEmail,
-      whatsapp_number: whatsappNumber || '',
-      password: passwordHash,
-      status: 'Active',
-      created_at: new Date().toISOString()
-    };
-
-    fallbackRegistrations.push(newReg);
-
-    if (fallbackBusiness.id === 'biz_1') {
-      fallbackBusiness = {
-        ...fallbackBusiness,
-        id: cleanEmail,
-        businessName: businessName || fallbackBusiness.businessName,
-        phone: whatsappNumber || fallbackBusiness.phone,
-        whatsapp: whatsappNumber || fallbackBusiness.whatsapp,
-        location: businessAddress || fallbackBusiness.location,
-        bankAccountName: `${firstName || ''} ${lastName || ''}`.trim() || fallbackBusiness.bankAccountName,
-        adminAlertEmail: cleanEmail
-      };
-    }
-
-    console.log(`🎉 Reseller ${cleanEmail} registered successfully in sandbox fallback!`);
-    saveSandboxData();
-    return res.json({ success: true, user: newReg });
+    // Neon not active: return error instead of silent fallback
+    console.error('❌ Registration failed: Neon database not initialized');
+    return res.status(503).json({ 
+      error: 'Database not ready. Please try again later or contact support.',
+      details: neonErrorMsg || 'Neon initialization incomplete'
+    });
   }
 });
 
 // RESELLER LOGIN/AUTH ENDPOINT (Neon Postgres check)
 app.post('/api/reseller/login', authLimiter, validate(loginSchema), async (req, res) => {
+  await initializePostgres();
+  
   const { email, password } = req.body;
   
   if (!email || !password) {
@@ -1085,38 +1049,13 @@ app.post('/api/reseller/login', authLimiter, validate(loginSchema), async (req, 
       return res.status(500).json({ error: `Neon SQL database login error: ${err.message}` });
     }
   } else {
-    // Neon not active: check in-memory sandbox fallback
-    const found = fallbackRegistrations.find(
-      r => r.email_address?.toLowerCase() === cleanEmail
-    );
-    if (found) {
-      const passwordMatch = await bcrypt.compare(password, found.password);
-      if (passwordMatch) {
-        console.log(`👤 Reseller authenticated successfully via Sandbox local offline cache: ${cleanEmail}`);
-        
-        // Generate JWT token
-        const token = jwt.sign(
-          { id: found.id, email: found.email_address, businessName: found.business_name },
-          JWT_SECRET,
-          { expiresIn: JWT_EXPIRES_IN }
-        );
-        
-        // Set httpOnly cookie
-        res.cookie('token', token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-        });
-        
-        // Return user without password
-        const { password: _, ...userWithoutPassword } = found;
-        return res.json({ success: true, user: userWithoutPassword });
-      }
-    }
+    // Neon not active: return error instead of silent fallback
+    console.error('❌ Login failed: Neon database not initialized');
+    return res.status(503).json({ 
+      error: 'Database not ready. Please try again later or contact support.',
+      details: neonErrorMsg || 'Neon initialization incomplete'
+    });
   }
-
-  return res.status(401).json({ error: 'Unauthorized Reseller. Check credentials or register first.' });
 });
 
 // LOGOUT ENDPOINT
