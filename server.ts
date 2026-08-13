@@ -261,7 +261,7 @@ const { Pool } = pg;
 let pgPool: pg.Pool | null = null;
 let neonActive = false;
 let neonErrorMsg = '';
-let initializationStarted = false;
+let initPromise: Promise<void> | null = null;
 
 const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
 
@@ -282,23 +282,22 @@ if (databaseUrl) {
   }
 }
 
-async function initializePostgres() {
+async function initializePostgres(): Promise<void> {
   if (neonActive) return;
-  if (initializationStarted) return;
-  
-  initializationStarted = true;
-  
-  if (!pgPool) {
-    console.log('⚠️ DATABASE_URL or POSTGRES_URL not set or Postgres unavailable. Running with in-memory fallback only.');
-    return;
-  }
+  if (initPromise) return initPromise;
 
-  let client: pg.PoolClient | null = null;
-  try {
-    client = await pgPool.connect();
-    console.log('⚡ Connected to Neon PostgreSQL Database! Creating schemas...');
-    
-    const tables = [
+  initPromise = (async () => {
+    if (!pgPool) {
+      console.log('⚠️ DATABASE_URL or POSTGRES_URL not set or Postgres unavailable. Running with in-memory fallback only.');
+      return;
+    }
+
+    let client: pg.PoolClient | null = null;
+    try {
+      client = await pgPool.connect();
+      console.log('⚡ Connected to Neon PostgreSQL Database! Creating schemas...');
+      
+      const tables = [
       `CREATE TABLE IF NOT EXISTS reseller_registrations (
         id SERIAL PRIMARY KEY,
         first_name VARCHAR(100),
@@ -458,15 +457,17 @@ async function initializePostgres() {
     neonActive = false;
     neonErrorMsg = err.message;
     console.error('❌ Neon PostgreSQL initialization failed:', err.message);
-    initializationStarted = false;
+    initPromise = null;
   } finally {
     if (client) client.release();
   }
+})();
 }
 
-initializePostgres().catch(err => {
-    console.error('⚠️ Neon initialization failed (non-fatal):', err.message);
-  });
+initPromise = initializePostgres();
+initPromise.catch(err => {
+  console.error('⚠️ Neon initialization failed (non-fatal):', err.message);
+});
 
 const WHATSAPP_API_KEY = process.env.WHATSAPP_API_KEY || '';
 
