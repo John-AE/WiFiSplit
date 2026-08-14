@@ -292,12 +292,17 @@ async function initializePostgres(): Promise<void> {
       return;
     }
 
+    const maxRetries = 3;
+    const retryDelays = [1000, 3000, 7000];
+
     let client: pg.PoolClient | null = null;
-    try {
-      client = await pgPool.connect();
-      console.log('⚡ Connected to Neon PostgreSQL Database! Creating schemas...');
-      
-      const tables = [
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`⚡ Neon init attempt ${attempt}/${maxRetries}...`);
+        client = await pgPool.connect();
+        console.log('⚡ Connected to Neon PostgreSQL Database! Creating schemas...');
+        
+        const tables = [
       `CREATE TABLE IF NOT EXISTS reseller_registrations (
         id SERIAL PRIMARY KEY,
         first_name VARCHAR(100),
@@ -453,14 +458,29 @@ async function initializePostgres(): Promise<void> {
     neonActive = true;
     neonErrorMsg = '';
     console.log('⚡ All schemas synchronized on Neon.');
+    return;
   } catch (err: any) {
+    if (client) {
+      client.release();
+      client = null;
+    }
     neonActive = false;
     neonErrorMsg = err.message;
-    console.error('❌ Neon PostgreSQL initialization failed:', err.message);
-    initPromise = null;
+    console.error(`❌ Neon PostgreSQL initialization attempt ${attempt}/${maxRetries} failed:`, err.message);
+    if (attempt < maxRetries) {
+      const delay = retryDelays[attempt - 1] || 5000;
+      console.log(`⏳ Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
   } finally {
     if (client) client.release();
   }
+}
+
+neonActive = false;
+neonErrorMsg = '❌ Neon PostgreSQL initialization failed after all retries.';
+console.error('❌ Neon PostgreSQL initialization failed after all retries.');
+initPromise = null;
 })();
 }
 
