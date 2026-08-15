@@ -270,10 +270,9 @@ if (databaseUrl) {
     pgPool = new Pool({
       connectionString: databaseUrl,
       ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 15000,
+      connectionTimeoutMillis: 6000,
       max: 5,
-      idleTimeoutMillis: 30000,
-      allowExitOnIdle: true
+      idleTimeoutMillis: 30000
     });
     console.log('⚡ Neon PostgreSQL Pool defined successfully.');
   } catch (err: any) {
@@ -292,8 +291,8 @@ async function initializePostgres(): Promise<void> {
       return;
     }
 
-    const maxRetries = 3;
-    const retryDelays = [1000, 3000, 7000];
+    const maxRetries = 2;
+    const retryDelays = [1000, 2000];
 
     let client: pg.PoolClient | null = null;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -481,11 +480,14 @@ neonActive = false;
 neonErrorMsg = '❌ Neon PostgreSQL initialization failed after all retries.';
 console.error('❌ Neon PostgreSQL initialization failed after all retries.');
 initPromise = null;
-})();
+  })();
+
+  // ← Return the IIFE promise so callers can actually await DB readiness
+  return initPromise;
 }
 
-initPromise = initializePostgres();
-initPromise.catch(err => {
+// Kick off initialization at module load without overwriting initPromise
+initializePostgres().catch(err => {
   console.error('⚠️ Neon initialization failed (non-fatal):', err.message);
 });
 
@@ -924,13 +926,11 @@ loadSandboxData();
 // FULL REST API ROUTINGS WITH DRUM-TIGHT REST API ROUTINGS
 // ----------------------------------------------------
 
-// DB Status Badge query
+// DB Status Badge query — always awaits initialization before reporting
 app.get('/api/db-status', async (req, res) => {
   try {
-    if (!neonActive && pgPool) {
-      console.log('🔄 DB status check - attempting initialization...');
-      await initializePostgres();
-    }
+    // Always try to initialize; with the fixed initPromise this properly awaits
+    await initializePostgres();
     const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
     res.json({
       status: neonActive ? 'connected' : 'offline',
@@ -951,7 +951,30 @@ app.get('/api/db-status', async (req, res) => {
   }
 });
 
-// Direct database health test - tests actual connection
+// Force-init endpoint — call this once after deploy to warm up the DB connection
+app.get('/api/db-init', async (req, res) => {
+  try {
+    // Reset initPromise so we force a fresh attempt regardless of prior state
+    if (!neonActive) {
+      initPromise = null;
+    }
+    await initializePostgres();
+    const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
+    res.json({
+      success: neonActive,
+      neonActive,
+      message: neonActive
+        ? '✅ Neon PostgreSQL connected and schemas ready'
+        : `❌ Init failed: ${neonErrorMsg}`,
+      hasDatabaseUrl: !!dbUrl,
+      databaseUrlLength: dbUrl.length
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Direct database health test — raw connection probe, no module state involved
 app.get('/api/db-health', async (req, res) => {
   try {
     if (!databaseUrl) {
@@ -961,7 +984,7 @@ app.get('/api/db-health', async (req, res) => {
     const testPool = new pg.Pool({
       connectionString: databaseUrl,
       ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 10000,
+      connectionTimeoutMillis: 6000,
       max: 1
     });
     
